@@ -1408,13 +1408,11 @@ class eBinner:
 		##########################################################
 		filter_N_reads = min(self.opts.N_motif_reads, self.opts.N_reads)
 
-		# wga_cmp_h5 = "/hpc/users/beaulj01/projects/ebinning/control/P6_C4_Bb_B31_aligned_reads.cmp.h5"
-		wga_cmp_h5 = "/hpc/users/beaulj01/projects/ebinning/control/P6_C4_Cdiff_PID22134_aligned_reads.cmp.h5"
-		wga_bas_h5 = "/hpc/users/beaulj01/projects/ebinning/gnoto/isolates/rgnavus/m150430_033851_42163R_c100796292550000001823171709091517_s1_p0.1.bax.h5"
+		
 		if self.opts.h5_type=="cmp":
-			control_h5 = wga_cmp_h5
+			control_h5 = self.opts.wga_cmp_h5
 		elif self.opts.h5_type=="bas":
-			control_h5 = wga_bas_h5
+			control_h5 = self.opts.wga_bas_h5
 
 		self.opts.control_run = True
 
@@ -2087,7 +2085,27 @@ class eBinner:
 
 		usage = """%prog [--help] [options]
 
-		USAGE INSTRUCTIONS
+		EXAMPLES 
+
+		For contigs:
+
+		python mbin/mbin.py -i --procs=4 --h5_type=cmp --h5_files=cmp.h5.fofn --contigs=polished_assembly.fasta --real_mix --min_kmer=4 --max_kmer=6 --control_dir=./control_data
+
+		where cmp.h5.fofn has the format:
+		aligned_read.cmp.h5 labelname
+
+
+
+		For unaligned reads:
+
+		python mbin/mbin.py -i --procs=4 --h5_type=bas --h5_files=bas.h5.fofn --readlength_min=20000 --max_kmer=4 --real_mix --control_dir=./control_data --motifs_file=motifs.txt
+
+		where bas.h5.fofn has the format:
+		smrtcell1.bas.h5 labelname
+		smrtcell2.bas.h5 labelname
+		smrtcell3.bas.h5 labelname
+		smrtcell4.bas.h5 labelname
+
 		"""
 
 		parser = optparse.OptionParser( usage=usage, description=__doc__ )
@@ -2099,8 +2117,7 @@ class eBinner:
 		parser.add_option( "--synth_mix", action="store_true", help="The mixture of aligned reads are synthetically created \
 																	 by mixing species-specific samples [False]" )
 
-		parser.add_option( "--real_mix", action="store_true", help="The mixture of aligned reads are from a truly mixed sample \
-																	of DNA [False]" )
+		parser.add_option( "--real_mix", action="store_true", help="The mixture of aligned reads are from a truly mixed sample of DNA [False]" )
 
 		parser.add_option( "--logFile", type="str", help="Write logging to file [log.out]" )
 
@@ -2148,7 +2165,7 @@ class eBinner:
 
 		parser.add_option( "--tmp", type="str", help="Directory where numerous temporary files will be written [tmp]" )
 
-		parser.add_option( "--procs", type="int", help="Number of cores to use [8]" )
+		parser.add_option( "--procs", type="int", help="Number of cores to use [4]" )
 
 		parser.add_option( "--N_reads", type="int", help="Number of qualifying reads to include in analysis [1000000000]" )
 
@@ -2218,7 +2235,7 @@ class eBinner:
 							 skip_motifs=None,                   \
 							 motifs_file=None,                   \
 							 tmp="tmp",                          \
-							 procs=8,                            \
+							 procs=4,                            \
 							 N_reads=1000000000,                 \
 							 h5_files=None,                      \
 							 h5_type="cmp",                      \
@@ -2251,6 +2268,16 @@ class eBinner:
 			parser.error("Use of the --cross_cov_bins option is not compatible with bas.h5 inputs!")
 
 		self.opts.control_dir = os.path.abspath(self.opts.control_dir)
+		
+		#####################
+		# Point to a whole-genome amplified or other 
+		# methylation-free files to use as controls
+		# 
+		# wga_cmp_h5 = an aligned_reads.cmp.h5 file of WGA alignments
+		# wga_bas_h5 = an unaligned file of WGA reads
+		self.opts.wga_cmp_h5  = "UNSPECIFIED/aligned_reads.cmp.h5"
+		self.opts.wga_bas_h5  = "UNSPECIFIED/m*****.1.bax.h5"
+		#####################
 
 	def __initLog( self ):
 		"""Sets up logging based on command line arguments. Allows for three levels of logging:

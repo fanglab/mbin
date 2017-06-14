@@ -26,6 +26,8 @@ The mBin pipeline is designed to discover the unique signals of DNA methylation 
 * Free software: BSD license
 * Documentation: https://mbin.readthedocs.io. <-- IN PROGRESS
 
+For basic usage instructions, run "python mbin/mbin.py --help"
+
 
 Features
 --------
@@ -39,6 +41,11 @@ By aggregating these IPD metrics across multiple sites for a motif and across mu
 Installation
 ---------
 For a comprehensive guide on how to install mBin and its dependencies, see :doc:`installation`
+
+
+Citations
+---------
+TBA
 
 Credits
 ---------
