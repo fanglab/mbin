@@ -12,6 +12,9 @@ from mbin import mbin
 class TestMbin(unittest.TestCase):
     """Tests for `mbin` package."""
 
+    def printYo(self):
+    	self.assertTrue(isinstance("YOYOYOY", basestring))
+
     def setUp(self):
         """Set up test fixtures, if any."""
 

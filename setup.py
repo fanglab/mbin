@@ -12,11 +12,17 @@ with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
 requirements = [
-    # TODO: put package requirements here
+    'pysam == 0.10.0',
+    'h5py >= 2.0.1',
+    'pbcore >= 0.9.4',
+    'scipy >= 0.12.0',
+    'biopython >= 1.6.1',
+    'matplotlib >= 1.5.0'
 ]
 
 setup_requirements = [
     # TODO(jbeaulaurier): put setup requirements (distutils extensions, etc.) here
+    "nose",
 ]
 
 test_requirements = [
@@ -36,16 +42,18 @@ setup(
     install_requires=requirements,
     license="BSD license",
     zip_safe=False,
-    keywords='mbin',
+    keywords='mbin methylation sequencing binning metagenomic',
+    # scripts=["bin/mbin"],
+    entry_points={"console_scripts" : ["mbin = mbin.__main__:main"]},
     classifiers=[
-        'Development Status :: 2 - Pre-Alpha',
+        'Development Status :: 5 - Stable',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: BSD License',
         'Natural Language :: English',
         "Programming Language :: Python :: 2",
         'Programming Language :: Python :: 2.7',
     ],
-    test_suite='tests',
+    test_suite='nose.collector',
     tests_require=test_requirements,
     setup_requires=setup_requirements,
 )

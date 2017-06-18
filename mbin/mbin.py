@@ -14,7 +14,6 @@ import multiproc
 import read_scanner
 import cmph5_read
 import baxh5_read
-import optparse
 import logging
 import multiprocessing
 import operator
@@ -124,7 +123,8 @@ def transpose_file( fn ):
 			logging.warning("Failed command: %s" % CMD)
 		return sts, stdOutErr
 
-	trans_script   = "/hpc/users/beaulj01/gitRepo/eBinning/src/transpose.awk"
+	transpose_dir  = os.path.dirname(os.path.realpath(read_scanner.__file__))
+	trans_script   = os.path.join(transpose_dir, "transpose.awk")
 	trans_CMD      = "awk -f %s %s > %s.trans" % (trans_script, fn, fn)
 	logging.info(trans_CMD)
 	sts, stdOutErr = run_OS(trans_CMD)
@@ -478,13 +478,14 @@ def combine_subreads_for_read_level( tup ):
 	for fn in contig_fns:
 		os.remove(fn)
 
-class eBinner:
-	def __init__( self ):
+
+
+class mbin_runner:
+	def __init__( self, opts, args ):
 		"""
-		Parse the options and arguments, then instantiate the logger. 
+		The options from __main__.py are passed to mbin_runner
 		"""
-		self.__parseArgs( )
-		self.__initLog( )
+		self.opts = opts
 
 	def chunks( self, l, n ):
 		"""
@@ -991,9 +992,6 @@ class eBinner:
 		# 	os.remove(fn)
 
 	def bas_stream_files( self ):
-		# control_ipds_fn      = os.path.join(self.opts.control_dir, self.opts.tmp, "read_ipds.tmp")
-		# control_ipds_N_fn    = os.path.join(self.opts.control_dir, self.opts.tmp, "read_ipdsN.tmp")
-		
 		reads_ipds_fn        = os.path.join( self.opts.tmp, "read_ipds.tmp"      )
 		reads_ipds_kmers_fn  = os.path.join( self.opts.tmp, "read_ipdskmers.tmp")
 		reads_ipds_N_fn      = os.path.join( self.opts.tmp, "read_ipdsN.tmp"    )
@@ -1072,134 +1070,6 @@ class eBinner:
 				length = self.opts.cmph5_contig_lens[cmph5_file][contig]
 			f.write("%s\n" % length)
 		f.close()
-
-	def write_readname_species_map( self, readname_species_fn ):
-		readname_species_map = {}
-		if os.path.exists(readname_species_fn):
-			for line in open(readname_species_fn, "r").xreadlines():
-				line = line.strip()
-				spec = line.split("\t")[1]
-				read = line.split("\t")[0]
-				readname_species_map[read] = spec
-		else:
-			readnames = np.loadtxt(self.read_names_fn, dtype="str")
-			for read in readnames:
-				readname_species_map[read] = "mix"
-		return readname_species_map
-
-	def write_movie_species_map( self, movie_map_fn ):
-		cell_species_map = {}
-		if os.path.exists(movie_map_fn):
-			for line in open(movie_map_fn, "r").xreadlines():
-				line  = line.strip()
-				spec  = line.split(":")[0]
-				cell  = line.split(":")[1].split(".")[0]
-				cell_species_map[cell] = spec
-		else:
-			readnames = np.loadtxt(self.read_names_fn, dtype="str")
-			cellnames = set(map(lambda x: x.split("/")[0], readnames))
-			for cellname in cellnames:
-				cell_species_map[cellname] = "mix"
-		return cell_species_map
-
-	def rewrite_read_labels_synth_mix( self, cell_species_map ):
-		os.rename(self.read_labels_fn, self.read_labels_fn+".tmp")
-		f = open(self.read_labels_fn, "w")
-		for readname in open(self.read_names_fn, "r").xreadlines():
-			readname = readname.strip()
-			cell     = readname.split("/")[0]
-			new_lab  = cell_species_map[cell]
-			f.write("%s\n" % new_lab)
-		f.close()
-		os.remove(self.read_labels_fn+".tmp")
-
-	def rewrite_read_labels_real_mix( self, readname_species_map ):
-		os.rename(self.read_labels_fn, self.read_labels_fn+".tmp")
-		f = open(self.read_labels_fn, "w")
-		for readname in open(self.read_names_fn, "r").xreadlines():
-			readname = readname.strip()
-			try:
-				new_lab = readname_species_map[readname]
-			except KeyError:
-				new_lab = "unknown"
-			f.write("%s\n" % new_lab)
-		f.close()
-		os.remove(self.read_labels_fn+".tmp")
-
-	def rewrite_contig_labels_synth_mix( self, cell_species_map ):
-		readnames    = np.loadtxt(self.read_names_fn,     dtype="str")
-		contigs      = np.atleast_1d(np.loadtxt(self.contig_names_fn,   dtype="str"))
-		refs         = np.loadtxt(self.read_refs_fn,      dtype="str")
-		spec_counter = {}
-		for contig in set(refs):
-			spec_counter[contig] = Counter()
-			idx                  = refs==contig
-			ref_reads            = readnames[idx]
-			for readname in ref_reads:
-				cell   = readname.split("/")[0]
-				spec   = cell_species_map[cell]
-				spec_counter[contig][spec] += 1
-		percents  = {}
-		f_mapping = open("contig_species_mappings.out", "w")
-		specs     = set()
-		for contig,counter in spec_counter.iteritems():
-			for spec,N in counter.iteritems():
-				specs.add(spec)
-		header  = "contig_name\t"
-		header += "\t".join(specs)
-		f_mapping.write("%s\n" % header)
-		for contig,counter in spec_counter.iteritems():
-			pcts_str         = contig
-			percents[contig] = {}
-			for spec in specs:
-				if counter.get(spec):
-					pct = 100 * float(counter[spec]) / sum(counter.values())
-				else:
-					pct = 0.0
-				percents[contig][spec] = pct
-				pcts_str += "\t%.1f" % pct
-			f_mapping.write("%s\n" % pcts_str)
-		f_mapping.close()
-		os.rename(self.contig_labels_fn, self.contig_labels_fn+".tmp")
-		f         = open(self.contig_labels_fn, "w")
-		for contig in contigs:
-			max_spec = max(percents[contig].iteritems(), key=operator.itemgetter(1))[0]
-			f.write("%s\n" % max_spec)
-		f.close()
-		os.remove(self.contig_labels_fn+".tmp")
-
-	def rewrite_contig_labels_real_mix( self, readname_species_map ):
-		readnames    = np.loadtxt(self.read_names_fn,   dtype="str")
-		contigs      = np.atleast_1d(np.loadtxt(self.contig_names_fn, dtype="str"))
-		refs         = np.loadtxt(self.read_refs_fn,    dtype="str")
-		spec_counter = {}
-		for contig in set(contigs):
-			spec_counter[contig] = Counter()
-			idx                  = refs==contig
-			ref_reads            = readnames[idx]
-			for readname in ref_reads:
-				readname = readname.strip()
-				try:
-					spec = readname_species_map[readname]
-				except KeyError:
-					spec = "unknown"
-				spec_counter[contig][spec] += 1
-		percents = {}
-		for contig,counter in spec_counter.iteritems():
-			percents[contig] = {}
-			for spec,N in counter.iteritems():
-				pct = 100 * float(N) / sum(counter.values())
-				percents[contig][spec] = pct
-		os.rename(self.contig_labels_fn, self.contig_labels_fn+".tmp")
-		f = open(self.contig_labels_fn, "w")
-		for contig in contigs:
-			if len(percents[contig])==0:
-				max_spec = "unknown" 
-			else:
-				max_spec = max(percents[contig].iteritems(), key=operator.itemgetter(1))[0]
-			f.write("%s\n" % max_spec)
-		f.close()
-		os.remove(self.contig_labels_fn+".tmp")
 
 	def digest_large_contigs_for_tSNE( self ):
 		names      = np.atleast_1d(np.loadtxt(self.contig_names_fn,     dtype="str"))
@@ -1348,7 +1218,6 @@ class eBinner:
 			self.contig_SCp_N_fn         = "contigs.SCp_N"
 			self.contig_SCp_2D_fn        = "contigs.SCp.2D"
 			self.contig_SCp_2D_z_fn      = "contigs.SCp.2D.zscores"
-			# self.contig_SCp_kmers_fn     = "contigs.SCp_kmers"
 			self.contig_cov_fn           = "contigs.cov"
 			self.contig_4D_z_fn          = "contigs.combined.4D.zscores"
 			self.contig_combo_2D_fn      = "contigs.combined.2D"
@@ -1395,7 +1264,6 @@ class eBinner:
 				self.contig_SCp_N_fn         = "contigs.SCp_N"
 				self.contig_SCp_2D_fn        = "contigs.SCp.2D"
 				self.contig_SCp_2D_z_fn      = "contigs.SCp.2D.zscores"
-				# self.contig_SCp_kmers_fn     = "contigs.SCp_kmers"
 				self.contig_cov_fn           = "contigs.cov"
 				self.contig_4D_z_fn          = "contigs.combined.4D.zscores"
 				self.contig_combo_2D_fn      = "contigs.combined.2D"
@@ -1456,13 +1324,12 @@ class eBinner:
 		###############################
 		# *.h5 file metadata collection
 		###############################
-		h5_files                    = []
-		for line in open(self.opts.h5_files).xreadlines():
-			line                     = line.strip("\n")
-			h5_fn                    = line.split()[0]
-			label                    = line.split()[1]
-			self.opts.h5_labels[h5_fn]         = label
+		h5_files  = []
+		for line in self.opts.h5_files:
+			h5_fn                      = line.strip("\n")
+			self.opts.h5_labels[h5_fn] = "remove"
 			h5_files.append(h5_fn)
+			
 			if self.opts.h5_type=="cmp":
 				self.opts.cmph5_contig_lens[h5_fn] = {}
 				logging.info("Getting contig information from %s..." % h5_fn)
@@ -1474,9 +1341,6 @@ class eBinner:
 					self.opts.cmph5_contig_lens[h5_fn][slug_name] = length
 				reader.close()
 				logging.info("Done.")
-
-		if self.opts.h5_type=="cmp" and len(h5_files)>1:
-			raise Exception("For aligned read analysis, only one cmp.h5 file at a time is supported.")
 
 		if not self.opts.comp_only and self.opts.motifs_file == None:
 			#########################################################
@@ -1802,29 +1666,10 @@ class eBinner:
 					logging.info("Done.")
 				n_contigs = len(np.atleast_1d(np.loadtxt(self.contig_names_fn, dtype="str")))
 
-		movie_map_fn         = "movie_mapping.txt"
-		readname_species_fn  = "read_species_mapping.txt"
-		readname_species_map = self.write_readname_species_map( readname_species_fn )
-		cell_species_map     = self.write_movie_species_map( movie_map_fn )
-
-		################################
-		# Apply species mapping to reads
-		################################
-		if self.opts.synth_mix:
-			self.rewrite_read_labels_synth_mix( cell_species_map )
-		elif self.opts.real_mix:
-			self.rewrite_read_labels_real_mix( readname_species_map )
-		
 		if self.opts.h5_type=="cmp" or self.opts.sam!=None:
-			##################################
-			# Apply species mapping to contigs
-			##################################
-			if self.opts.synth_mix:
-				self.rewrite_contig_labels_synth_mix( cell_species_map )
-			elif self.opts.real_mix:
-				self.rewrite_contig_labels_real_mix( readname_species_map )
-			self.write_contig_length_labels_file( h5_files[0] )
 			
+			self.write_contig_length_labels_file( h5_files[0] )
+
 			##########################################################
 			# Reduce contigs composition dimensionality from ND --> 2D
 			##########################################################
@@ -1977,8 +1822,9 @@ class eBinner:
 			# 																														 self.read_combo_2D_fn)
 			# self.run_tSNE(sne_CMD)
 
-		
-		# shutil.rmtree( self.opts.tmp )
+		if not self.opts.debug:
+			# Keep temp files if -d or --debug is specified
+			shutil.rmtree( self.opts.tmp )
 
 		f = open("ordered_motifs.txt", "w")
 		motifs = np.loadtxt(self.read_SMp_kmers_fn, dtype="str")
@@ -2080,239 +1926,7 @@ class eBinner:
 		logging.info("Done.")
 		return parallel_results
 
-	def __parseArgs( self ):
-		"""Handle command line argument parsing"""
-
-		usage = """%prog [--help] [options]
-
-		EXAMPLES 
-
-		For contigs:
-
-		python mbin/mbin.py -i --procs=4 --h5_type=cmp --h5_files=cmp.h5.fofn --contigs=polished_assembly.fasta --real_mix --min_kmer=4 --max_kmer=6 --control_dir=./control_data
-
-		where cmp.h5.fofn has the format:
-		aligned_read.cmp.h5 labelname
-
-
-
-		For unaligned reads:
-
-		python mbin/mbin.py -i --procs=4 --h5_type=bas --h5_files=bas.h5.fofn --readlength_min=20000 --max_kmer=4 --real_mix --control_dir=./control_data --motifs_file=motifs.txt
-
-		where bas.h5.fofn has the format:
-		smrtcell1.bas.h5 labelname
-		smrtcell2.bas.h5 labelname
-		smrtcell3.bas.h5 labelname
-		smrtcell4.bas.h5 labelname
-
-		"""
-
-		parser = optparse.OptionParser( usage=usage, description=__doc__ )
-
-		parser.add_option( "-d", "--debug", action="store_true", help="Increase verbosity of logging" )
-
-		parser.add_option( "-i", "--info", action="store_true", help="Add basic logging" )
-
-		parser.add_option( "--synth_mix", action="store_true", help="The mixture of aligned reads are synthetically created \
-																	 by mixing species-specific samples [False]" )
-
-		parser.add_option( "--real_mix", action="store_true", help="The mixture of aligned reads are from a truly mixed sample of DNA [False]" )
-
-		parser.add_option( "--logFile", type="str", help="Write logging to file [log.out]" )
-
-		parser.add_option( "--subreadlength_min", type="int", help="Minimum subread length to include for analysis [100]" )
-
-		parser.add_option( "--readlength_min", type="int", help="Minimum read length to include for analysis [100]" )
-
-		parser.add_option( "--readlength_max", type="int", help="Maximum read length to include for analysis [10000000]" )
-
-		parser.add_option( "--minQV", type="float", help="If base has QV < minQV, do not include [0]" )
-
-		parser.add_option( "--min_IPD", type="float", help="If motif IPD is < min_IPD, set to zero [1.0]" )
-
-		parser.add_option( "--min_pct", type="float", help="Remove motifs if they are significant in < min_pct of all reads [5.0]" )
-
-		parser.add_option( "--min_kmer", type="int", help="Minimum motif size to scan (contiguous motifs) [4]" )
-
-		parser.add_option( "--max_kmer", type="int", help="Maximum motif size to scan (contiguous motifs) [6]" )
-
-		parser.add_option( "--mod_bases", type="str", help="String containing bases to query for mods ['AC']" )
-
-		parser.add_option( "--comp_kmer", type="int", help="Kmer size to use for sequence composition measurements [5]" )
-
-		parser.add_option( "--minAcc", type="float", help="Min subread accuracy of read [0.8]" )
-
-		parser.add_option( "--minMapQV", type="float", help="Min mapping QV of aligned read [240]" )
-
-		parser.add_option( "--minReadScore", type="float", help="Min read score of an unaligned read [0.0]" )
-
-		parser.add_option( "--maxPausiness", type="float", help="Max pausiness value of an unaligned read [1000]" )
-
-		parser.add_option( "--bipartite", action="store_true", help="Search bipartite motifs also [False]" )
-
-		parser.add_option( "--comp_only", action="store_true", help="Only run composition binning (no eBinning) [False]" )
-
-		parser.add_option( "--minContigLength", type="int", help="Min length of contig to consider [10000]" )
-
-		parser.add_option( "--minContigForMotifs", type="int", help="Min length of contig to use when getting top motifs [50000]" )
-
-		parser.add_option( "--get_cmph5_stats", action="store_true", help="Generate read stats and exit [False]" )
-
-		parser.add_option( "--skip_motifs", type="str", help="File containing specific motifs to SKIP [None]" )
-
-		parser.add_option( "--motifs_file", type="str", help="File containing specific motifs to include [None]" )
-
-		parser.add_option( "--tmp", type="str", help="Directory where numerous temporary files will be written [tmp]" )
-
-		parser.add_option( "--procs", type="int", help="Number of cores to use [4]" )
-
-		parser.add_option( "--N_reads", type="int", help="Number of qualifying reads to include in analysis [1000000000]" )
-
-		parser.add_option( "--h5_files", type="str", help="Path to file listing the *.h5 files to analyze and their labels [None]" )
-
-		parser.add_option( "--h5_type", type="str", help="cmp (aligned reads) or bax (unaligned) [cmp]" )
-		
-		parser.add_option( "--contigs", type="str", help="Fasta file containing entries for the assembled contigs [None]" )
-		
-		parser.add_option( "--bas_whitelist", type="str", help="File containing reads to use in the read-level binning [None]" )
-		
-		parser.add_option( "--subcontig_size", type="int", help="Size to decompose contigs into for tSNE weighting [50000]" )
-		
-		parser.add_option( "--min_motif_N", type="int", help="Min number of IPDs from a read/contig to keep for motif filtering [20]" )
-		
-		parser.add_option( "--min_motif_reads", type="int", help="Min number of reads with motif hits to keep for motif filtering [20]" )
-		
-		parser.add_option( "--N_motif_reads", type="int", help="Number of reads to scan for motif discovery procedure (will use N_reads \
-																if smaller than N_motif_reads) [20000]" )
-		
-		parser.add_option( "--minMotifIPD", type="float", help="Min motif contig IPD for inclusion of motif in final set [1.7]" )
-		
-		parser.add_option( "--printIPDs", action="store_true", help="Print out IPD values for SCp ROC curve [False]" )
-		
-		parser.add_option( "--subtract_control", type="str", help="Subtract control IPDs in final calculations [True]" )
-		
-		parser.add_option( "--sam", type="str", help="Path to SAM file with CCS alignments for assigning read-level IPDs to contigs [None]" )
-		
-		parser.add_option( "--control_dir", type="str", help="Path to location to write control IPD data from WGA sequencing [None]" )
-		
-		parser.add_option( "--cross_cov_bins", type="str", help="Path to file containing binning results from CONCOCT. Will use to \
-																 improve motif discovery. Only works with contig-level analysis \
-																 (cmp.h5 input) inputs. File format should be '<contig_name>,<bin_id>' \
-																 [None]" )
-		
-		parser.add_option( "--motif_discov_only", action="store_true", help="Quit pipeline after motif discovery [False]" )
-		parser.set_defaults( logFile="log.out",                  \
-							 info=False,                         \
-							 debug=False,                        \
-							 synth_mix=False,                    \
-							 real_mix=False,                     \
-							 printIPDs=False,                    \
-							 subtract_control=True,              \
-							 subreadlength_min=100,              \
-							 readlength_min=100,                 \
-							 readlength_max=10000000,            \
-							 minQV=0.0,                          \
-							 min_IPD=1.0,                        \
-							 min_pct=5.0,                        \
-							 min_kmer=4,                         \
-							 max_kmer=6,                         \
-							 comp_kmer=5,                        \
-							 mod_bases="A",                      \
-							 minAcc=0.8,                         \
-							 minMapQV=240,                       \
-							 minReadScore=0.0,                   \
-							 maxPausiness=1000,                  \
-							 minContigLength=10000,              \
-							 minContigForMotifs=25000,           \
-							 minMotifIPD=1.7,                    \
-							 min_motif_N=20,                     \
-							 min_motif_reads=20,                 \
-							 N_motif_reads=20000,                \
-							 get_cmph5_stats=False,              \
-							 bipartite=False,                    \
-							 comp_only=False,                    \
-							 skip_motifs=None,                   \
-							 motifs_file=None,                   \
-							 tmp="tmp",                          \
-							 procs=4,                            \
-							 N_reads=1000000000,                 \
-							 h5_files=None,                      \
-							 h5_type="cmp",                      \
-							 bas_whitelist=None,                 \
-							 contigs=None,                       \
-							 sam=None,                           \
-							 control_dir="Not_set",              \
-							 cross_cov_bins=None,                \
-							 motif_discov_only=False,            \
-							 subcontig_size=50000)
-
-		self.opts, args = parser.parse_args( )
-
-		self.opts.bipart_config = [(3,4), (5,6), (3,4)]
-		# self.opts.bipart_config = [(3,), (5,), (3,)]
-
-		if len(args) != 0:
-			parser.error( "Expected 0 arguments." )		
-
-		if not self.opts.synth_mix and not self.opts.real_mix:
-			parser.error( "Specify --real_mix or --synth_mix!" )
-
-		if self.opts.sam!=None and self.opts.motifs_file==None:
-			parser.error( "Use of SAM file for read<-->contig mapping only supported with input motifs file using --motifs_file!" )
-
-		if self.opts.control_dir=="Not_set":
-			parser.error("Please specify where to build control IPD data (or where an existing build exists)!")
-
-		if self.opts.h5_type=="bas" and self.opts.cross_cov_bins!=None:
-			parser.error("Use of the --cross_cov_bins option is not compatible with bas.h5 inputs!")
-
-		self.opts.control_dir = os.path.abspath(self.opts.control_dir)
-		
-		#####################
-		# Point to a whole-genome amplified or other 
-		# methylation-free files to use as controls
-		# 
-		# wga_cmp_h5 = an aligned_reads.cmp.h5 file of WGA alignments
-		# wga_bas_h5 = an unaligned file of WGA reads
-		self.opts.wga_cmp_h5  = "UNSPECIFIED/aligned_reads.cmp.h5"
-		self.opts.wga_bas_h5  = "UNSPECIFIED/m*****.1.bax.h5"
-		#####################
-
-	def __initLog( self ):
-		"""Sets up logging based on command line arguments. Allows for three levels of logging:
-		logging.error( ): always emitted
-		logging.info( ) : emitted with --info or --debug
-		logging.debug( ): only with --debug"""
-
-		if os.path.exists(self.opts.logFile):
-			os.remove(self.opts.logFile)
-
-		logLevel = logging.DEBUG if self.opts.debug \
-					else logging.INFO if self.opts.info \
-					else logging.ERROR
-
-		self.logger = logging.getLogger("")
-		self.logger.setLevel(logLevel)
-		
-		# create file handler which logs even debug messages
-		fh = logging.FileHandler(self.opts.logFile)
-		fh.setLevel(logLevel)
-		
-		# create console handler with a higher log level
-		ch = logging.StreamHandler()
-		ch.setLevel(logLevel)
-		
-		# create formatter and add it to the handlers
-		logFormat = "%(asctime)s [%(levelname)s] %(message)s"
-		formatter = logging.Formatter(logFormat)
-		ch.setFormatter(formatter)
-		fh.setFormatter(formatter)
-		
-		# add the handlers to logger
-		self.logger.addHandler(ch)
-		self.logger.addHandler(fh)
 
 if __name__=="__main__":
-	app     = eBinner()
+	app     = mbin_runner()
 	results = app.run()
