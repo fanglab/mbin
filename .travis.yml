@@ -8,13 +8,13 @@ python:
 # command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
 install: pip install -U tox-travis
 
-before_script:
-  - composer self-update -q
-  - if [ -n "$GH_TOKEN" ]; then composer config github-oauth.github.com ${GH_TOKEN}; fi;
-  - if [ -z "$dependencies" ]; then composer install; fi;
-  - if [ "$dependencies" = "lowest" ]; then composer update --prefer-lowest -n; fi;
-  - if [ "$dependencies" = "highest" ]; then composer update -n; fi;
-  - composer show -i
+# before_script:
+#   - composer self-update -q
+#   - if [ -n "$GH_TOKEN" ]; then composer config github-oauth.github.com ${GH_TOKEN}; fi;
+#   - if [ -z "$dependencies" ]; then composer install; fi;
+#   - if [ "$dependencies" = "lowest" ]; then composer update --prefer-lowest -n; fi;
+#   - if [ "$dependencies" = "highest" ]; then composer update -n; fi;
+#   - composer show -i
 
 # command to run tests, e.g. python setup.py test
 script: tox
@@ -29,5 +29,5 @@ deploy:
     secure: PLEASE_REPLACE_ME
   on:
     tags: true
-    repo: jbeaulaurier/mbin
+    repo: fanglab/mbin
     python: 2.7
