@@ -96,7 +96,7 @@ class ControlRunner:
 		If control data already exists, point to it and skip.
 		Otherwise, specify where to generate the control data.
 		"""
-		if os.path.exists(self.opts.control_pkl):
+		if (self.opts.use_control!=None and os.path.exists(self.opts.use_control)):
 			# Control data already exists
 			launch_control = False
 		else:
@@ -111,10 +111,10 @@ class ControlRunner:
 		will be gathered and analyzed.
 		"""
 		# Make control directory
-		if os.path.exists(self.opts.control_dir):
-			shutil.rmtree(self.opts.control_dir)
-		os.mkdir(self.opts.control_dir)
-		os.chdir(self.opts.control_dir)
+		if os.path.exists(self.opts.control_tmp):
+			shutil.rmtree(self.opts.control_tmp)
+		os.mkdir(self.opts.control_tmp)
+		os.chdir(self.opts.control_tmp)
 		
 		# Make tmp directory inside control directory
 		if os.path.exists(self.opts.tmp):
@@ -127,23 +127,24 @@ class ControlRunner:
 		"""
 		os.chdir(self.orig_dir)
 
-	def add_degen_motifs( self, motifs_file, control_means ):
+	def add_degen_motifs( self, motifs, orig_control_means ):
 		"""
 		If a predetermined set of motifs is input using --motifs_file option,
 		create a new entry for the degen motif in the control values dictionary
 		by combining the existing data from the various specified versions 
 		of the motif.
 		"""
-		motifs = np.loadtxt(motifs_file, dtype="str")
-		keys_str = "\n".join(control_means.keys())
+		keys_str          = "\n".join(orig_control_means.keys())
+		new_control_means = orig_control_means
 		for m in motifs:
-			new_m      = motif_tools.sub_bases(m)
+			new_m = motif_tools.sub_bases(m)
 			if new_m!=m:
 				matches    = re.findall(new_m, keys_str)
-				degen_mean = np.mean([control_means[match] for match in matches])
-				control_means[m] = degen_mean
+				degen_mean = np.mean([orig_control_means[match] for match in matches])
+				new_control_means[m] = degen_mean
 				logging.info("Adding degenerate motif %s to controls: %s" % (m, degen_mean))
-		return control_means
+
+		return new_control_means
 
 	def scan_WGA_h5( self ):
 		"""
@@ -198,7 +199,7 @@ class ControlRunner:
 		"""
 
 		"""
-		kmers       = np.loadtxt(control_kmers_fn, dtype="str")[0,:]
+		kmers       = np.atleast_1d(np.loadtxt(control_kmers_fn, dtype="str"))
 		fns         = [control_ipds_fn, control_ipds_N_fn]
 		n_chunks    = 99
 		chunksize   = int(math.ceil(float( len(kmers)/n_chunks )))
@@ -227,21 +228,79 @@ class ControlRunner:
 
 		return control_means,not_found
 
+	def combine_control_data_from_contigs( self ):
+		"""
+		If control WGA data contains multiple contigs, this 
+		will combine them into one file for each data type
+		so that the control IPD dictionary will be generated
+		using data from all contigs.
+		"""
+		contigs_fns    = glob.glob( os.path.join(self.opts.tmp, "control_*.tmp") )
+		labels_fns     = []
+		strands_fns    = []
+		lengths_fns    = []
+		readnames_fns  = []
+		ipds_fns       = []
+		ipds_N_fns     = []
+		comp_N_fns     = []
+		comp_kmers_fns = []
+		ipds_kmers_fns = []
+		for fn in contigs_fns:
+			if   fn.find("_labels.")>-1:
+				labels_fns.append(fn)
+			elif fn.find("_strand.")>-1:
+				strands_fns.append(fn)
+			elif fn.find("_lengths.")>-1:
+				lengths_fns.append(fn)
+			elif fn.find("_readnames.")>-1:
+				readnames_fns.append(fn)
+			elif fn.find("_ipds.")>-1:
+				ipds_fns.append(fn)
+			elif fn.find("_ipdsN.")>-1:
+				ipds_N_fns.append(fn)
+			elif fn.find("_compN.")>-1:
+				comp_N_fns.append(fn)
+			elif fn.find("_compkmers.")>-1:
+				comp_kmers_fns.append(fn)
+			elif fn.find("_ipdskmers.")>-1:
+				ipds_kmers_fns.append(fn)
+
+		labels_fns.sort()
+		strands_fns.sort()
+		lengths_fns.sort()
+		readnames_fns.sort()
+		ipds_fns.sort()
+		ipds_N_fns.sort()
+		comp_N_fns.sort()
+		
+		cmph5_read.cat_list_of_files(labels_fns,    os.path.join(self.opts.tmp, "control_labels.tmp"))
+		cmph5_read.cat_list_of_files(strands_fns,   os.path.join(self.opts.tmp, "control_strands.tmp"))
+		cmph5_read.cat_list_of_files(lengths_fns,   os.path.join(self.opts.tmp, "control_lengths.tmp"))
+		cmph5_read.cat_list_of_files(readnames_fns, os.path.join(self.opts.tmp, "control_names.tmp"))
+		cmph5_read.cat_list_of_files(ipds_fns,      os.path.join(self.opts.tmp, "control_ipds.tmp"))
+		cmph5_read.cat_list_of_files(ipds_N_fns,    os.path.join(self.opts.tmp, "control_ipdsN.tmp"))
+		cmph5_read.cat_list_of_files(comp_N_fns,    os.path.join(self.opts.tmp, "control_compN.tmp"))
+		
+		shutil.copy(comp_kmers_fns[0],              os.path.join(self.opts.tmp, "control_compkmers.tmp"))
+		shutil.copy(ipds_kmers_fns[0],              os.path.join(self.opts.tmp, "control_ipdskmers.tmp"))
+		x = [os.remove(fn) for fn in comp_kmers_fns]
+		x = [os.remove(fn) for fn in ipds_kmers_fns]
+
 	def build_control_IPD_dict( self, motifs, bi_motifs ):
 		"""
 
 		"""
 		if self.opts.h5_type=="cmp":
-			control_ipds_fn   = glob.glob(os.path.join(self.opts.control_dir, self.opts.tmp, "control_quiver_quiver_ipds.tmp" ))
-			control_ipds_N_fn = glob.glob(os.path.join(self.opts.control_dir, self.opts.tmp, "control_quiver_quiver_ipdsN.tmp"))
-			control_kmers_fn  = glob.glob(os.path.join(self.opts.control_dir, self.opts.tmp, "control_quiver_quiver_ipdskmers.tmp"))
+			control_ipds_fn   = glob.glob(os.path.join(self.opts.tmp, "control_ipds.tmp" ))
+			control_ipds_N_fn = glob.glob(os.path.join(self.opts.tmp, "control_ipdsN.tmp"))
+			control_kmers_fn  = glob.glob(os.path.join(self.opts.tmp, "control_ipdskmers.tmp"))
 		elif self.opts.h5_type=="bas":
-			control_ipds_fn   = glob.glob(os.path.join(self.opts.control_dir, self.opts.tmp, "read_ipds.tmp"))
-			control_ipds_N_fn = glob.glob(os.path.join(self.opts.control_dir, self.opts.tmp, "read_ipdsN.tmp"))
-			control_kmers_fn  = glob.glob(os.path.join(self.opts.control_dir, self.opts.tmp, "read_ipdskmers.tmp"))
+			control_ipds_fn   = glob.glob(os.path.join(self.opts.tmp, "read_ipds.tmp"))
+			control_ipds_N_fn = glob.glob(os.path.join(self.opts.tmp, "read_ipdsN.tmp"))
+			control_kmers_fn  = glob.glob(os.path.join(self.opts.tmp, "read_ipdskmers.tmp"))
 
-		if len(control_ipds_fn)>1 or len(control_ipds_N_fn)>1 or len(control_kmers_fn)>1:
-			raise Exception("*** Double check the control files. They look weird.")
+		if (len(control_ipds_fn)>1 or len(control_ipds_N_fn)>1 or len(control_kmers_fn)>1):
+			raise Exception("*** Double check the control files. There should not be multiples for a file type.")
 
 		control_means,not_found = self.chunk_control_matrices(control_ipds_fn[0], control_ipds_N_fn[0], control_kmers_fn[0])
 
@@ -249,14 +308,8 @@ class ControlRunner:
 			logging.warning("WARNING: %s/%s motifs did not have sufficient coverage in control data!" % (not_found, (len(motifs)+len(bi_motifs))))
 			logging.warning("   * If this is alarming, try increasing --N_motif_reads to get higher coverage and make sure N_reads > N_motif_reads")
 		
-		logging.info("Writing control data to a pickled file for future re-use: %s" % self.opts.control_pkl)
-		pickle.dump( control_means, open( self.opts.control_pkl, "wb" ) )
-		logging.info("Done.")
-
-		logging.info("Cleaning up temp files from control data processing...")
-		to_rm = glob.glob(os.path.join(self.opts.control_dir, self.opts.tmp, "*.tmp.sub.*"))
-		for fn in to_rm:
-			os.remove(fn)
+		logging.info("Writing control data to a pickled file for future re-use: %s" % self.opts.write_control)
+		pickle.dump( control_means, open( self.opts.write_control, "wb" ) )
 		logging.info("Done.")
 
 		return control_means
@@ -265,5 +318,5 @@ class ControlRunner:
 		"""
 
 		"""
-		control_means = pickle.load(open(self.opts.control_pkl, "rb"))
+		control_means = pickle.load(open(self.opts.use_control, "rb"))
 		return control_means

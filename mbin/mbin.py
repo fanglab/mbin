@@ -18,14 +18,13 @@ import logging
 import multiprocessing
 import operator
 import subprocess
-import plotting
 import glob
 from itertools import izip
-import warnings
 import pickle
 import pysam
 import motif_tools
 from control_ipds import ControlRunner
+import dim_reduce
 
 def run_OS_command( CMD ):
 	p         = subprocess.Popen(CMD, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -198,9 +197,9 @@ def simplify_motifs( tup ):
 		control_means[d_motif] = degen_mean
 	
 	# Delete all control mean entries for motifs not in the keeper set
-	for motif in control_means.keys():
-		if motif not in keeper_motifs:
-			del control_means[motif]
+	# for motif in control_means.keys():
+	# 	if motif not in keeper_motifs:
+	# 		del control_means[motif]
 
 	return keeper_motifs, control_means
 
@@ -486,6 +485,100 @@ class mbin_runner:
 		The options from __main__.py are passed to mbin_runner
 		"""
 		self.opts = opts
+		self.fns  = {}
+	
+		##########################################################
+		# Define output filenames
+		##########################################################
+		if self.opts.h5_type=="cmp":
+			#############################################
+			# Define the alignment-level output filenames
+			#############################################
+			self.fns["read_names"]           = "reads.names"
+			self.fns["read_refs"]            = "reads.refs"
+			self.fns["read_labels"]          = "reads.labels"
+			self.fns["read_lengths"]         = "reads.lengths"
+			self.fns["read_strands"]         = "reads.strands"
+			self.fns["read_comp_kmers"]      = "reads.comp_kmers"
+			self.fns["read_comp_counts"]     = "reads.comp_counts"
+			self.fns["read_comp"]            = "reads.comp"
+			self.fns["read_comp_2D"]         = "reads.comp.2D"
+			self.fns["read_comp_2D_z"]       = "reads.comp.2D.zscores"
+			self.fns["read_SMp_kmers"]       = "reads.SMp_kmers"
+			self.fns["read_SMp_counts"]      = "reads.SMp_counts"
+			self.fns["read_SMp"]             = "reads.SMp"
+			self.fns["read_SMp_2D"]          = "reads.SMp.2D"
+			self.fns["read_SMp_2D_z"]        = "reads.SMp.2D.zscores"
+			self.fns["read_4D_z"]            = "reads.combined.4D.zscores"
+			self.fns["read_combo_2D"]        = "reads.combined.2D"
+
+			# #############################################
+			# # Define the contig-level output filenames
+			# #############################################
+			self.fns["contig_names"]         = "contigs.names"
+			self.fns["contig_labels"]        = "contigs.labels"
+			self.fns["contig_lengths"]       = "contigs.lengths"
+			self.fns["contig_comp"]          = "contigs.comp"
+			self.fns["contig_comp_2D"]       = "contigs.comp.2D"
+			self.fns["contig_comp_2D_z"]     = "contigs.comp.2D.zscores"
+			self.fns["contig_cov_comp_3D"]   = "contigs.cov_comp.3D"
+			self.fns["contig_cov_comp_2D"]   = "contigs.cov_comp.2D"
+			self.fns["contig_cov_comp_2D_z"] = "contigs.cov_comp.2D.zscores"
+			self.fns["contig_SCp"]           = "contigs.SCp"
+			self.fns["contig_SCp_N"]         = "contigs.SCp_N"
+			self.fns["contig_SCp_2D"]        = "contigs.SCp.2D"
+			self.fns["contig_SCp_2D_z"]      = "contigs.SCp.2D.zscores"
+			self.fns["contig_cov"]           = "contigs.cov"
+			self.fns["contig_4D_z"]          = "contigs.combined.4D.zscores"
+			self.fns["contig_combo_2D"]      = "contigs.combined.2D"
+		
+			if self.opts.cross_cov_bins!=None:
+				self.fns["bin_names"]        = "bins.names"
+				self.fns["bin_sizes"]        = "bins.sizes"
+				self.fns["bin_SCp"]          = "bins.SCp"
+				self.fns["bin_SCp_N"]        = "bins.SCp_N"
+
+		elif self.opts.h5_type=="bas":
+			#############################################
+			# Define the unaligned read-level output filenames
+			#############################################
+			self.fns["read_names"]           = "reads.raw.names"
+			self.fns["read_labels"]          = "reads.raw.labels"
+			self.fns["read_lengths"]         = "reads.raw.lengths"
+			self.fns["read_comp_kmers"]      = "reads.raw.comp_kmers"
+			self.fns["read_comp_counts"]     = "reads.raw.comp_counts"
+			self.fns["read_comp"]            = "reads.raw.comp"
+			self.fns["read_comp_2D"]         = "reads.raw.comp.2D"
+			self.fns["read_comp_2D_z"]       = "reads.raw.comp.2D.zscores"
+			self.fns["read_SMp_kmers"]       = "reads.raw.SMp_kmers"
+			self.fns["read_SMp_counts"]      = "reads.raw.SMp_counts"
+			self.fns["read_SMp"]             = "reads.raw.SMp"
+			self.fns["read_SMp_2D"]          = "reads.raw.SMp.2D"
+			self.fns["read_SMp_2D_z"]        = "reads.raw.SMp.2D.zscores"
+			self.fns["read_4D_z"]            = "reads.raw.combined.4D.zscores"
+			self.fns["read_combo_2D"]        = "reads.raw.combined.2D"
+			
+			if self.opts.sam!=None:
+				####################################################
+				# Define contig filenames when SAM file used to map reads --> contigs
+				####################################################
+				self.fns["read_refs"]            = "reads.ccs.refs"
+				self.fns["contig_names"]         = "contigs.names"
+				self.fns["contig_labels"]        = "contigs.labels"
+				self.fns["contig_lengths"]       = "contigs.lengths"
+				self.fns["contig_comp"]          = "contigs.comp"
+				self.fns["contig_comp_2D"]       = "contigs.comp.2D"
+				self.fns["contig_comp_2D_z"]     = "contigs.comp.2D.zscores"
+				self.fns["contig_cov_comp_3D"]   = "contigs.cov_comp.3D"
+				self.fns["contig_cov_comp_2D"]   = "contigs.cov_comp.2D"
+				self.fns["contig_cov_comp_2D_z"] = "contigs.cov_comp.2D.zscores"
+				self.fns["contig_SCp"]           = "contigs.SCp"
+				self.fns["contig_SCp_N"]         = "contigs.SCp_N"
+				self.fns["contig_SCp_2D"]        = "contigs.SCp.2D"
+				self.fns["contig_SCp_2D_z"]      = "contigs.SCp.2D.zscores"
+				self.fns["contig_cov"]           = "contigs.cov"
+				self.fns["contig_4D_z"]          = "contigs.combined.4D.zscores"
+				self.fns["contig_combo_2D"]      = "contigs.combined.2D"
 
 	def chunks( self, l, n ):
 		"""
@@ -493,18 +586,6 @@ class mbin_runner:
 		"""
 		for i in xrange(0, len(l), n):
 			yield l[i:i+n]
-
-	def run_tSNE( self, cmd ):
-		sts        = 1
-		perplexity = 30
-		while sts!=0 and perplexity>1:
-			cmd            = cmd.split(" -p ")[0]
-			cmd           += " -p %s" % perplexity
-			logging.info("Running %s" % cmd)
-			sts, stdOutErr = run_OS_command( cmd )
-			perplexity -= 1
-			if sts!=0:
-				logging.info("   ...trying again (p = %s)..." % perplexity)
 
 	def launch_data_loader( self, h5_file, N_reads, movie_i ):
 		logging.info("Loading data from %s..." % h5_file)
@@ -591,16 +672,16 @@ class mbin_runner:
 		comp_N_fns.sort()
 		
 
-		cmph5_read.cat_list_of_files(labels_fns,    self.read_labels_fn, del_ins=False)
-		cmph5_read.cat_list_of_files(lengths_fns,   self.read_lengths_fn, del_ins=False)
-		cmph5_read.cat_list_of_files(refs_fns,      self.read_refs_fn, del_ins=False)
-		cmph5_read.cat_list_of_files(readnames_fns, self.read_names_fn, del_ins=False)
-		cmph5_read.cat_list_of_files(strands_fns,   self.read_strands_fn, del_ins=False)
-		cmph5_read.cat_list_of_files(ipds_fns,      self.read_SMp_fn, del_ins=False)
-		cmph5_read.cat_list_of_files(ipds_N_fns,    self.read_SMp_counts_fn, del_ins=False)
-		cmph5_read.cat_list_of_files(comp_N_fns,    self.read_comp_fn, del_ins=False)
-		shutil.copy(comp_kmers_fns[0],              self.read_comp_kmers_fn)
-		shutil.copy(ipds_kmers_fns[0],              self.read_SMp_kmers_fn)
+		cmph5_read.cat_list_of_files(labels_fns,    self.fns["read_labels"], del_ins=False)
+		cmph5_read.cat_list_of_files(lengths_fns,   self.fns["read_lengths"], del_ins=False)
+		cmph5_read.cat_list_of_files(refs_fns,      self.fns["read_refs"], del_ins=False)
+		cmph5_read.cat_list_of_files(readnames_fns, self.fns["read_names"], del_ins=False)
+		cmph5_read.cat_list_of_files(strands_fns,   self.fns["read_strands"], del_ins=False)
+		cmph5_read.cat_list_of_files(ipds_fns,      self.fns["read_SMp"], del_ins=False)
+		cmph5_read.cat_list_of_files(ipds_N_fns,    self.fns["read_SMp_counts"], del_ins=False)
+		cmph5_read.cat_list_of_files(comp_N_fns,    self.fns["read_comp"], del_ins=False)
+		shutil.copy(comp_kmers_fns[0],              self.fns["read_comp_kmers"])
+		shutil.copy(ipds_kmers_fns[0],              self.fns["read_SMp_kmers"])
 
 		for fn in comp_kmers_fns:
 			os.remove(fn)
@@ -609,11 +690,11 @@ class mbin_runner:
 		# 	os.remove(fn)
 
 	def combine_subreads_for_contig_level( self, cmph5_file ):
-		readnames         = np.loadtxt(self.read_names_fn,       dtype="str")
-		read_refs         = np.loadtxt(self.read_refs_fn,        dtype="str")
-		reads_SMp         = np.loadtxt(self.read_SMp_fn,         dtype="float")
-		reads_SMp_counts  = np.loadtxt(self.read_SMp_counts_fn,  dtype="int")
-		reads_lengths     = np.loadtxt(self.read_lengths_fn,     dtype="int")
+		readnames         = np.loadtxt(self.fns["read_names"],       dtype="str")
+		read_refs         = np.loadtxt(self.fns["read_refs"],        dtype="str")
+		reads_SMp         = np.loadtxt(self.fns["read_SMp"],         dtype="float")
+		reads_SMp_counts  = np.loadtxt(self.fns["read_SMp_counts"],  dtype="int")
+		reads_lengths     = np.loadtxt(self.fns["read_lengths"],     dtype="int")
 		
 		if len(reads_SMp.shape)==1:
 			reads_SMp        = reads_SMp.reshape(reads_SMp.shape[0],1)
@@ -664,13 +745,13 @@ class mbin_runner:
 		# Calculate composition profiles for all contigs in the contigs.fasta file
 		contigs_comp_strings,self.contig_fasta_lens = calc_contig_comps( self.opts.contigs )
 
-		f_ref_names       = open(self.contig_names_fn,   "w")
-		f_ref_SCp         = open(self.contig_SCp_fn,     "w")
-		f_ref_SCp_N       = open(self.contig_SCp_N_fn,   "w")
-		f_ref_comp        = open(self.contig_comp_fn,    "w")
-		f_ref_labels      = open(self.contig_labels_fn,  "w")
-		f_ref_covs        = open(self.contig_cov_fn,     "w")
-		f_ref_lens        = open(self.contig_lengths_fn, "w")
+		f_ref_names       = open(self.fns["contig_names"],   "w")
+		f_ref_SCp         = open(self.fns["contig_SCp"],     "w")
+		f_ref_SCp_N       = open(self.fns["contig_SCp_N"],   "w")
+		f_ref_comp        = open(self.fns["contig_comp"],    "w")
+		f_ref_labels      = open(self.fns["contig_labels"],  "w")
+		f_ref_covs        = open(self.fns["contig_cov"],     "w")
+		f_ref_lens        = open(self.fns["contig_lengths"], "w")
 		if self.opts.comp_only:
 			ref_names         = contigs_comp_strings.keys()
 			ref_names_str     = "\n".join(ref_names)
@@ -744,10 +825,10 @@ class mbin_runner:
 
 		bin_map = dict(np.loadtxt(self.opts.cross_cov_bins, delimiter=",", dtype="str"))
 
-		contigs_names   = np.loadtxt(self.contig_names_fn,   dtype="str")
-		contigs_SCp     = np.loadtxt(self.contig_SCp_fn,     dtype="float")
-		contigs_SCp_N   = np.loadtxt(self.contig_SCp_N_fn,   dtype="int")
-		contigs_lengths = np.loadtxt(self.contig_lengths_fn, dtype="int")
+		contigs_names   = np.loadtxt(self.fns["contig_names"],   dtype="str")
+		contigs_SCp     = np.loadtxt(self.fns["contig_SCp"],     dtype="float")
+		contigs_SCp_N   = np.loadtxt(self.fns["contig_SCp_N"],   dtype="int")
+		contigs_lengths = np.loadtxt(self.fns["contig_lengths"], dtype="int")
 		
 		if len(contigs_SCp.shape)==1:
 			contigs_SCp   = contigs_SCp.reshape(contigs_SCp.shape[0],1)
@@ -948,14 +1029,14 @@ class mbin_runner:
 			reads_comp_N_fn     = os.path.join(self.opts.tmp, "read_compN.tmp"    )
 			reads_comp_kmers_fn = os.path.join(self.opts.tmp, "read_compkmers.tmp")
 		else:
-			reads_names_fn      = self.read_names_fn     
-			reads_labels_fn     = self.read_labels_fn    
-			reads_lengths_fn    = self.read_lengths_fn   
-			reads_ipds_fn       = self.read_SMp_fn      
-			reads_ipds_N_fn     = self.read_SMp_counts_fn    
-			reads_ipds_kmers_fn = self.read_SMp_kmers_fn
-			reads_comp_N_fn     = self.read_comp_fn    
-			reads_comp_kmers_fn = self.read_comp_kmers_fn
+			reads_names_fn      = self.fns["read_names"]
+			reads_labels_fn     = self.fns["read_labels"]
+			reads_lengths_fn    = self.fns["read_lengths"]
+			reads_ipds_fn       = self.fns["read_SMp"]
+			reads_ipds_N_fn     = self.fns["read_SMp_counts"]
+			reads_ipds_kmers_fn = self.fns["read_SMp_kmers"]
+			reads_comp_N_fn     = self.fns["read_comp"]
+			reads_comp_kmers_fn = self.fns["read_comp_kmers"]
 
 		f_reads      = open(reads_names_fn,      "w")
 		f_labels     = open(reads_labels_fn,     "w")
@@ -997,7 +1078,7 @@ class mbin_runner:
 		reads_ipds_N_fn      = os.path.join( self.opts.tmp, "read_ipdsN.tmp"    )
 		all_motifs           = defaultdict(list)
 		logging.info("Unpickling the control IPDs...")
-		control_means        = pickle.load(open(self.opts.control_pkl, "r"))
+		control_means        = pickle.load(open(self.opts.write_control, "r"))
 		logging.info("Done.")
 		args = []
 		for j,line in enumerate(open(reads_ipds_fn+".trans", "r").xreadlines()):
@@ -1042,9 +1123,9 @@ class mbin_runner:
 				read_lens[read] = len(aln.seq)
 
 		# Write the read_refs file to match the readnames file
-		readnames = np.loadtxt(self.read_names_fn, dtype="str")
-		f_names   = open(self.read_refs_fn,    "wb")
-		f_lens    = open(self.read_lengths_fn, "wb")
+		readnames = np.loadtxt(self.fns["read_names"], dtype="str")
+		f_names   = open(self.fns["read_refs"],    "wb")
+		f_lens    = open(self.fns["read_lengths"], "wb")
 		for readname in readnames:
 			try:
 				f_names.write("%s\n" % read_refs[readname])
@@ -1056,113 +1137,6 @@ class mbin_runner:
 				f_lens.write("0\n")
 		f_names.close()
 		f_lens.close()
-
-	def write_contig_length_labels_file( self, cmph5_file ):
-		contigs           = np.atleast_1d(np.loadtxt(self.contig_names_fn, dtype="str"))
-		f                 = open(self.contig_lengths_fn, "w")
-		for contig in contigs:
-			if self.opts.sam!=None:
-				if contig=="unknown":
-					length = 1000
-				else:
-					length = self.contig_fasta_lens[contig]
-			else:
-				length = self.opts.cmph5_contig_lens[cmph5_file][contig]
-			f.write("%s\n" % length)
-		f.close()
-
-	def digest_large_contigs_for_tSNE( self ):
-		names      = np.atleast_1d(np.loadtxt(self.contig_names_fn,     dtype="str"))
-		labels     = np.atleast_1d(np.loadtxt(self.contig_labels_fn,    dtype="str"))
-		covs       = np.atleast_1d(np.loadtxt(self.contig_cov_fn,       dtype="float"))
-		lengths    = np.atleast_1d(np.loadtxt(self.contig_lengths_fn,   dtype="int"))
-		SCp        = np.atleast_1d(np.loadtxt(self.contig_SCp_fn,       dtype="float"))
-		SCp_N      = np.atleast_1d(np.loadtxt(self.contig_SCp_N_fn,     dtype="float"))
-		comp       = np.atleast_1d(np.loadtxt(self.contig_comp_fn,      dtype="float"))
-
-		# if len(SCp.shape)==1:
-		# 	SCp   = SCp.reshape(SCp.shape[0],1)
-		# 	SCp_N = SCp_N.reshape(SCp_N.shape[0],1)
-
-		# if len(comp.shape)==1:
-		# 	comp   = comp.reshape(comp.shape[0],1)
-
-		max_size          = self.opts.subcontig_size
-		ref_comp_fn       = "contigs.frag_comp"
-		ref_SCp_fn        = "contigs.frag_SCp"
-		ref_SCp_N_fn      = "contigs.frag_SCp_N"
-		ref_names_fn      = "contigs.frag_names"
-		ref_labels_fn     = "contigs.frag_labels"
-		ref_covs_fn       = "contigs.frag_covs"
-		ref_lengths_fn    = "contigs.frag_lengths"
-		f_ref_comp        = open(ref_comp_fn,    "w")
-		f_ref_SCp         = open(ref_SCp_fn,     "w")
-		f_ref_SCp_N       = open(ref_SCp_N_fn,   "w")
-		f_ref_names       = open(ref_names_fn,   "w")
-		f_ref_labels      = open(ref_labels_fn,  "w")
-		f_ref_covs        = open(ref_covs_fn,    "w")
-		f_ref_lengths     = open(ref_lengths_fn, "w")
-		for i,length in enumerate(lengths):
-			if length>max_size:
-				name            = names[i]
-				label           = labels[i]
-				cov             = covs[i]
-				# Copy the original contig SCp and composition vectors; apply to fragments
-				if len(SCp.shape)==1:
-					contig_SCp_str    = "\t".join(map(lambda x: str(x), SCp[:]))
-					contig_SCp_N_str  = "\t".join(map(lambda x: str(x), SCp_N[:]))
-					contig_comp_str   = "\t".join(map(lambda x: str(x), comp[:]))
-				else: 
-					contig_SCp_str    = "\t".join(map(lambda x: str(x), SCp[i,:]))
-					contig_SCp_N_str  = "\t".join(map(lambda x: str(x), SCp_N[i,:]))
-					contig_comp_str   = "\t".join(map(lambda x: str(x), comp[i,:]))
-				
-				for j,(refName,contig_seq) in enumerate(self.fasta_iter(self.opts.contigs)):
-				
-					if refName.find("|quiver")>-1:
-						# SMRT assemblies add |quiver to contig names, but this
-						# gets dropped from the contig names in the cmp.h5 file.
-						refName = refName.replace("|quiver","")
-			
-					if cmph5_read.slugify(refName) == name:
-						seq_chunks = list(self.chunks(contig_seq, max_size))
-						# Omit the chunk containing the remainder sequence
-						seq_chunks = seq_chunks[:-1]
-						for seq_chunk in seq_chunks:
-							contig_comp  = []
-							contig_kmers = read_scanner.kmer_freq( "cmp", seq_chunk, 0, self.opts )
-							for kmer,count in contig_kmers.iteritems():
-								kmer_normed_comp = math.log(float(count) / sum(contig_kmers.values()))
-								contig_comp.append(kmer_normed_comp)
-							# contig_comp_str = "\t".join(map(lambda x: str(round(x,6)), contig_comp))
-							f_ref_comp.write(   "%s\n" %  contig_comp_str)
-							f_ref_SCp.write(    "%s\n" %  contig_SCp_str)
-							f_ref_SCp_N.write(  "%s\n" %  contig_SCp_N_str)
-							f_ref_names.write(  "%s\n" %  name)
-							f_ref_labels.write( "%s\n" %  label)
-							f_ref_covs.write(   "%s\n" %  cov)
-							f_ref_lengths.write("%s\n" %  len(seq_chunk))
-		f_ref_comp.close()
-		f_ref_SCp.close()
-		f_ref_SCp_N.close()
-		f_ref_names.close()
-		f_ref_labels.close()
-		f_ref_covs.close()
-		f_ref_lengths.close()
-
-		def append_file( orig, new ):
-			cat_CMD = "cat %s %s > tmp.appended" % (orig, new)
-			sts, stdOutErr = run_OS_command( cat_CMD )
-			os.rename("tmp.appended", orig)
-			os.remove(new)
-			
-		append_file( self.contig_comp_fn,    ref_comp_fn )
-		append_file( self.contig_SCp_fn,     ref_SCp_fn )
-		append_file( self.contig_SCp_N_fn,   ref_SCp_N_fn )
-		append_file( self.contig_names_fn,   ref_names_fn )
-		append_file( self.contig_labels_fn,  ref_labels_fn )
-		append_file( self.contig_cov_fn,     ref_covs_fn )
-		append_file( self.contig_lengths_fn, ref_lengths_fn )
 
 	def run( self ):
 		##########################################################
@@ -1176,97 +1150,6 @@ class mbin_runner:
 		if os.path.exists(self.opts.tmp):
 			shutil.rmtree(self.opts.tmp)
 		os.mkdir(self.opts.tmp)
-
-		##########################################################
-		# Define output filenames
-		##########################################################
-		if self.opts.h5_type=="cmp":
-			#############################################
-			# Define the alignment-level output filenames
-			#############################################
-			self.read_names_fn           = "reads.names"
-			self.read_refs_fn            = "reads.refs"
-			self.read_labels_fn          = "reads.labels"
-			self.read_lengths_fn         = "reads.lengths"
-			self.read_strands_fn         = "reads.strands"
-			self.read_comp_kmers_fn      = "reads.comp_kmers"
-			self.read_comp_counts_fn     = "reads.comp_counts"
-			self.read_comp_fn            = "reads.comp"
-			self.read_comp_2D_fn         = "reads.comp.2D"
-			self.read_comp_2D_z_fn       = "reads.comp.2D.zscores"
-			self.read_SMp_kmers_fn       = "reads.SMp_kmers"
-			self.read_SMp_counts_fn      = "reads.SMp_counts"
-			self.read_SMp_fn             = "reads.SMp"
-			self.read_SMp_2D_fn          = "reads.SMp.2D"
-			self.read_SMp_2D_z_fn        = "reads.SMp.2D.zscores"
-			self.read_4D_z_fn            = "reads.combined.4D.zscores"
-			self.read_combo_2D_fn        = "reads.combined.2D"
-
-			# #############################################
-			# # Define the contig-level output filenames
-			# #############################################
-			self.contig_names_fn         = "contigs.names"
-			self.contig_labels_fn        = "contigs.labels"
-			self.contig_lengths_fn       = "contigs.lengths"
-			self.contig_comp_fn          = "contigs.comp"
-			self.contig_comp_2D_fn       = "contigs.comp.2D"
-			self.contig_comp_2D_z_fn     = "contigs.comp.2D.zscores"
-			self.contig_cov_comp_3D_fn   = "contigs.cov_comp.3D"
-			self.contig_cov_comp_2D_fn   = "contigs.cov_comp.2D"
-			self.contig_cov_comp_2D_z_fn = "contigs.cov_comp.2D.zscores"
-			self.contig_SCp_fn           = "contigs.SCp"
-			self.contig_SCp_N_fn         = "contigs.SCp_N"
-			self.contig_SCp_2D_fn        = "contigs.SCp.2D"
-			self.contig_SCp_2D_z_fn      = "contigs.SCp.2D.zscores"
-			self.contig_cov_fn           = "contigs.cov"
-			self.contig_4D_z_fn          = "contigs.combined.4D.zscores"
-			self.contig_combo_2D_fn      = "contigs.combined.2D"
-		
-			if self.opts.cross_cov_bins!=None:
-				self.bin_names_fn        = "bins.names"
-				self.bin_sizes_fn        = "bins.sizes"
-				self.bin_SCp_fn          = "bins.SCp"
-				self.bin_SCp_N_fn        = "bins.SCp_N"
-
-		elif self.opts.h5_type=="bas":
-			
-			self.read_names_fn           = "reads.raw.names"
-			self.read_labels_fn          = "reads.raw.labels"
-			self.read_lengths_fn         = "reads.raw.lengths"
-			self.read_comp_kmers_fn      = "reads.raw.comp_kmers"
-			self.read_comp_counts_fn     = "reads.raw.comp_counts"
-			self.read_comp_fn            = "reads.raw.comp"
-			self.read_comp_2D_fn         = "reads.raw.comp.2D"
-			self.read_comp_2D_z_fn       = "reads.raw.comp.2D.zscores"
-			self.read_SMp_kmers_fn       = "reads.raw.SMp_kmers"
-			self.read_SMp_counts_fn      = "reads.raw.SMp_counts"
-			self.read_SMp_fn             = "reads.raw.SMp"
-			self.read_SMp_2D_fn          = "reads.raw.SMp.2D"
-			self.read_SMp_2D_z_fn        = "reads.raw.SMp.2D.zscores"
-			self.read_4D_z_fn            = "reads.raw.combined.4D.zscores"
-			self.read_combo_2D_fn        = "reads.raw.combined.2D"
-			
-			if self.opts.sam!=None:
-				####################################################
-				# Define contig filenames for SAM --> contig pathway
-				####################################################
-				self.read_refs_fn            = "reads.ccs.refs"
-				self.contig_names_fn         = "contigs.names"
-				self.contig_labels_fn        = "contigs.labels"
-				self.contig_lengths_fn       = "contigs.lengths"
-				self.contig_comp_fn          = "contigs.comp"
-				self.contig_comp_2D_fn       = "contigs.comp.2D"
-				self.contig_comp_2D_z_fn     = "contigs.comp.2D.zscores"
-				self.contig_cov_comp_3D_fn   = "contigs.cov_comp.3D"
-				self.contig_cov_comp_2D_fn   = "contigs.cov_comp.2D"
-				self.contig_cov_comp_2D_z_fn = "contigs.cov_comp.2D.zscores"
-				self.contig_SCp_fn           = "contigs.SCp"
-				self.contig_SCp_N_fn         = "contigs.SCp_N"
-				self.contig_SCp_2D_fn        = "contigs.SCp.2D"
-				self.contig_SCp_2D_z_fn      = "contigs.SCp.2D.zscores"
-				self.contig_cov_fn           = "contigs.cov"
-				self.contig_4D_z_fn          = "contigs.combined.4D.zscores"
-				self.contig_combo_2D_fn      = "contigs.combined.2D"
 
 		self.opts.h5_labels         = {}
 		self.opts.cmph5_contig_lens = {}
@@ -1284,14 +1167,13 @@ class mbin_runner:
 
 		self.opts.control_run = True
 
-		logging.info("Checking for existing control IPD data...")
-		self.opts.control_pkl = os.path.join(self.opts.control_dir, self.opts.tmp, "control_means.pkl")
+		logging.info("Checking for existing control IPD data in the form of a pickled dictionary...")
 		controls              = ControlRunner(control_h5, self.opts)
 		launch_control        = controls.check_control_file()
 		
 		if launch_control:
 			logging.info("No control data found -- preparing to create new control data...")
-			logging.info("   -- Being created in %s" % self.opts.control_dir)
+			logging.info("   -- Being created in %s" % self.opts.control_tmp)
 			controls.goto_control_output_dir()
 			self.opts = controls.scan_WGA_h5()
 			self.launch_data_loader( control_h5, filter_N_reads, 1 )
@@ -1300,10 +1182,18 @@ class mbin_runner:
 
 			logging.info("Building dictionary of control values for all motifs...")
 			logging.info("   * Initial build requires significant time and memory.")
+			controls.combine_control_data_from_contigs()
 			control_means = controls.build_control_IPD_dict(self.motifs, self.bi_motifs)
 			logging.info("Done.")
+			
+			controls.return_to_orig_dir()
+
+			logging.info("Cleaning up temp files from control data processing...")
+			shutil.rmtree(self.opts.control_tmp)
+			logging.info("Done.")
+
 		else:
-			logging.info("Control data found at %s" % self.opts.control_dir)
+			logging.info("Control data found at %s" % self.opts.use_control)
 			
 			logging.info("Loading pickled control IPD values...")
 			control_means = controls.load_control_pickle()
@@ -1312,15 +1202,21 @@ class mbin_runner:
 		if self.opts.motifs_file!=None:
 			# Degen motifs in the motifs_file might not be in the existing
 			# dictionary of control values. Need to construct it by combining
-			# the existing data from the various specified versions of the motif
+			# the existing control data from the various specified versions 
+			# of the motif
 			
-			control_means = controls.add_degen_motifs( self.opts.motifs_file, control_means)
-			local_pkl     = os.path.basename(self.opts.control_pkl)+".wdegen"
-			pickle.dump(control_means, open(local_pkl, "wb"))
+			motifs = np.loadtxt(self.opts.motifs_file, dtype="str")
+			control_means = controls.add_degen_motifs( motifs, control_means)
 
-		controls.return_to_orig_dir()
+		# Controls are loaded into control_means, now pickle them for easy
+		# passing between parallel processes
+		pickle.dump(control_means, open(self.opts.write_control, "wb"))
+
+		# Done examining the control WGA data
 		self.opts.control_run = False
 		
+
+
 		###############################
 		# *.h5 file metadata collection
 		###############################
@@ -1411,7 +1307,7 @@ class mbin_runner:
 				streamed_contig_dicts  = {}
 				if len(contigs_for_transpose)>0:
 					logging.info("Streaming through %s contigs..." % len(contigs_for_transpose))
-					args    = [(self.opts.control_pkl, contig, i, len(contigs_for_transpose), self.opts.minMotifIPD, self.opts.min_motif_N) for i,contig in enumerate(contigs_for_transpose)]
+					args    = [(self.opts.write_control, contig, i, len(contigs_for_transpose), self.opts.minMotifIPD, self.opts.min_motif_N) for i,contig in enumerate(contigs_for_transpose)]
 					results = launch_pool( self.opts.procs, stream_case_control_files, args)
 					
 					streamed_contig_SCp    = map(lambda x: x[0], results)
@@ -1428,7 +1324,7 @@ class mbin_runner:
 					logging.info("Chunking %s contigs..." % len(contigs_for_chunking))
 					
 					for i,contig in enumerate(contigs_for_chunking):
-						control_means,contig_SCp,contig_SCp_N,contig = chunk_case_control_files( self.opts.control_pkl, contig, i, len(contigs_for_chunking), self.opts.minMotifIPD, self.opts.min_motif_N, self.opts.procs, self.opts )
+						control_means,contig_SCp,contig_SCp_N,contig = chunk_case_control_files( self.opts.write_control, contig, i, len(contigs_for_chunking), self.opts.minMotifIPD, self.opts.min_motif_N, self.opts.procs, self.opts )
 						
 						chunked_contigs_dicts[contig] = {"SCp":contig_SCp, "SCp_N":contig_SCp_N}
 					
@@ -1489,7 +1385,7 @@ class mbin_runner:
 										  self.opts.min_motif_N,          \
 										  len(bin_ids),                   \
 										  bin_id,                         \
-										  self.opts.control_pkl,          \
+										  self.opts.write_control,          \
 										  "bin") )
 
 					results = launch_pool( self.opts.procs, simplify_motifs, args )
@@ -1504,9 +1400,9 @@ class mbin_runner:
 					for bin_keeper_motifs in bin_keeper_motifs_list:
 						keeper_motifs = keeper_motifs | bin_keeper_motifs
 
-					for control_means in control_means_list:
-						for motif,score in control_means.iteritems():
-							keeper_control_ipds[motif] = score
+					for sub_control_means in control_means_list:
+						for motif,score in sub_control_means.iteritems():
+							control_means[motif] = score
 
 				else:
 
@@ -1523,7 +1419,7 @@ class mbin_runner:
 									  self.opts.min_motif_N,      \
 									  len(contig_dicts.keys()),   \
 									  contig,                     \
-									  self.opts.control_pkl,      \
+									  self.opts.write_control,      \
 									  "contig") )
 
 					results = launch_pool( self.opts.procs, simplify_motifs, args )
@@ -1542,22 +1438,11 @@ class mbin_runner:
 						for motif,score in control_means.iteritems():
 							keeper_control_ipds[motif] = score
 
-						
 				# Rewrite the control so that it includes the new degenerate motifs.
-				# But write the control pickle locally so that it doesn't get overwritten
-				# if another job uses the same control directory.
-				local_pkl = os.path.basename(self.opts.control_pkl)+".wdegen"
-				pickle.dump( keeper_control_ipds, open(local_pkl, "wb" ) )
+				control_means = controls.add_degen_motifs( keeper_motifs, control_means)
+				pickle.dump(control_means, open(self.opts.write_control, "wb"))
 			
 			elif self.opts.h5_type=="bas":
-				# if os.path.exists(control_ipds_fn+".trans") and os.path.exists(control_ipds_N_fn+".trans"):
-				# 	pass
-				# else:
-				# 	logging.info("Transposing control matrices....")
-				# 	control_files = [control_ipds_fn, control_ipds_N_fn]
-				# 	results       = launch_pool( len(control_files), transpose_file, control_files )
-				# 	logging.info("Done.")
-				
 				logging.info("Transposing reads...")
 				files   = [os.path.join(self.opts.tmp, "read_ipds.tmp"), os.path.join(self.opts.tmp, "read_ipdsN.tmp")]
 				results = launch_pool( len(files), transpose_file, files )
@@ -1565,15 +1450,14 @@ class mbin_runner:
 				logging.info("Streaming through reads for motif filtering...")
 				keeper_motifs = self.bas_stream_files()
 				
-				keeper_control_ipds = {}
-				control_means       = pickle.load(open(self.opts.control_pkl, "r"))
-				for motif in list(keeper_motifs):
-					keeper_control_ipds[motif] = control_means[motif]
-				logging.info("%s" % ",".join(list(keeper_motifs)))
-				logging.info("Done.")
+				# keeper_control_ipds = {}
+				# # control_means       = pickle.load(open(self.opts.write_control, "r"))
+				# for motif in list(keeper_motifs):
+				# 	keeper_control_ipds[motif] = control_means[motif]
+				# logging.info("%s" % ",".join(list(keeper_motifs)))
+				# logging.info("Done.")
 
-				local_pkl = os.path.basename(self.opts.control_pkl)+".filtered"
-				pickle.dump( keeper_control_ipds, open(local_pkl, "wb" ) )
+				# pickle.dump(control_means, open(self.opts.write_control, "wb"))
 
 			logging.info("Keeping %s motifs for further analysis:" % len(keeper_motifs))
 			self.motifs = list(keeper_motifs)
@@ -1603,8 +1487,6 @@ class mbin_runner:
 			for motif in keeper_motifs:
 				f_motifs.write("%s\n" % motif)
 			f_motifs.close()
-
-
 
 
 
@@ -1639,7 +1521,7 @@ class mbin_runner:
 				logging.info("Creating contig-level barcodes (%s motifs) from %s..." % (len(keeper_motifs), h5_file))
 				self.combine_subreads_for_contig_level( h5_file )
 				logging.info("Done.")
-				n_contigs = len(np.atleast_1d(np.loadtxt(self.contig_names_fn, dtype="str")))
+				n_contigs = len(np.atleast_1d(np.loadtxt(self.fns["contig_names"], dtype="str")))
 
 
 				if self.opts.cross_cov_bins!=None:
@@ -1664,170 +1546,18 @@ class mbin_runner:
 					logging.info("Creating contig-level barcodes (%s motifs) from %s..." % (len(keeper_motifs), h5_file))
 					self.combine_subreads_for_contig_level( h5_file )
 					logging.info("Done.")
-				n_contigs = len(np.atleast_1d(np.loadtxt(self.contig_names_fn, dtype="str")))
+				n_contigs = len(np.atleast_1d(np.loadtxt(self.fns["contig_names"], dtype="str")))
 
-		if self.opts.h5_type=="cmp" or self.opts.sam!=None:
-			
-			self.write_contig_length_labels_file( h5_files[0] )
-
-			##########################################################
-			# Reduce contigs composition dimensionality from ND --> 2D
-			##########################################################
-			logging.info("Reducing dimensionality of the CONTIGS composition matrix...")
-			logging.info("    - digesting large contigs to provide more weight in tSNE")
-			self.digest_large_contigs_for_tSNE()
-			sne_CMD    = "python ~/gitRepo/eBinning/src/bhtsne.py -v -i %s -l %s -o %s -s contigs.comp.scatter.png -z %s -n contigs_composition_digest" %    \
-																																	(self.contig_comp_fn,    \
-																																	 self.contig_labels_fn,  \
-																																	 self.contig_comp_2D_fn, \
-																																	 self.contig_lengths_fn)
-			self.run_tSNE(sne_CMD)
-			
-			##################################################################################
-			# Adding contigs coverage column to 2D composition matrix, reducing from 3D --> 2D
-			##################################################################################
-			logging.info("Adding contig coverage column to 2D composition matrix and reducing to 2D...")
-			paste_CMD      = "paste %s %s > %s" % (self.contig_comp_2D_fn, self.contig_cov_fn, self.contig_cov_comp_3D_fn)
-			sts, stdOutErr = run_OS_command( paste_CMD )
-			sne_CMD  = "python ~/gitRepo/eBinning/src/bhtsne.py -v -i %s -l %s -o %s -s contigs.cov_comp.scatter.png -z %s -n contigs_composition_coverage_digest" %    \
-																																	(self.contig_cov_comp_3D_fn, \
-																																	 self.contig_labels_fn,  \
-																																	 self.contig_cov_comp_2D_fn, \
-																																	 self.contig_lengths_fn)
-			self.run_tSNE(sne_CMD)
-
-			##################################################
-			# Reduce contigs IPD dimensionality from ND --> 2D
-			##################################################
-			logging.info("Reducing dimensionality of the CONTIGS SCp matrix...")
-			sne_CMD = "python ~/gitRepo/eBinning/src/bhtsne.py -v -i %s -l %s -o %s -s contigs.SCp.tSNE.scatter.png -z %s -n contigs_SCp_tSNE_%s_motifs_digest" % \
-																																	(self.contig_SCp_fn,          \
-																																	 self.contig_labels_fn,       \
-																																	 self.contig_SCp_2D_fn,       \
-																																	 self.contig_lengths_fn,      \
-																																	 n_motifs)
-			self.run_tSNE(sne_CMD)
-			logging.info("Done.")
-
-			#########################################################################
-			# Apply Z-score transformation for combining composition and IPD matrices
-			#########################################################################
-			logging.info("Z-score tranforming the 2D matrices...")
-			# for fn in [self.read_SMp_2D_fn, self.read_comp_2D_fn, self.contig_SCp_2D_fn, self.contig_cov_comp_2D_fn, self.contig_comp_2D_fn]:
-			for fn in [self.contig_SCp_2D_fn, self.contig_cov_comp_2D_fn, self.contig_comp_2D_fn]:
-				if fn==self.contig_SCp_2D_fn and self.opts.h5_type=="cmp" and self.opts.comp_only:
-					shutil.copy(self.contig_SCp_fn, self.contig_SCp_2D_fn)
-					shutil.copy(self.contig_SCp_2D_fn, self.contig_SCp_2D_fn+".zscores")
-				else:
-					m         = np.loadtxt(fn, dtype="float")
-					m_std     = stats.mstats.zscore(m, axis=0)
-					out_fn    = fn + ".zscores"
-					np.savetxt(out_fn, m_std, fmt='%.3f', delimiter="\t")
-			logging.info("Done.")
-
-			paste_CMD      = "paste %s %s > %s" % (self.contig_cov_comp_2D_z_fn, self.contig_SCp_2D_z_fn, self.contig_4D_z_fn)
-			sts, stdOutErr = run_OS_command( paste_CMD )
-			sne_CMD        = "python ~/gitRepo/eBinning/src/bhtsne.py -v -i %s -l %s -o %s -s contigs.combined.scatter.png -z %s -n contigs_combined_%s_motifs" % \
-																																	(self.contig_4D_z_fn,         \
-																																	 self.contig_labels_fn,       \
-																																	 self.contig_combo_2D_fn,     \
-																																	 self.contig_lengths_fn,      \
-																																	 n_motifs)
-			self.run_tSNE(sne_CMD)
-
-			########################################################################
-			# Make both digested and undigested versions of the contigs output files
-			########################################################################
-			def drop_appended_lines( fn, n_to_keep ):
-				head_CMD = "head -%s %s > tmp.head" % (n_to_keep, fn)
-				sts, stdOutErr = run_OS_command( head_CMD )
-				os.rename("tmp.head", fn)
-
-			logging.info("...removing the fragmented contig seeds...")
-			shutil.copy( self.contig_comp_fn,          self.contig_comp_fn+".digest" )
-			shutil.copy( self.contig_comp_2D_fn,       self.contig_comp_2D_fn+".digest" )
-			shutil.copy( self.contig_comp_2D_z_fn,     self.contig_comp_2D_z_fn+".digest" )
-			shutil.copy( self.contig_cov_comp_3D_fn,   self.contig_cov_comp_3D_fn+".digest" )
-			shutil.copy( self.contig_cov_comp_2D_fn,   self.contig_cov_comp_2D_fn+".digest" )
-			shutil.copy( self.contig_cov_comp_2D_z_fn, self.contig_cov_comp_2D_z_fn+".digest" )
-			shutil.copy( self.contig_SCp_fn,           self.contig_SCp_fn+".digest" )
-			shutil.copy( self.contig_SCp_N_fn,         self.contig_SCp_N_fn+".digest" )
-			shutil.copy( self.contig_SCp_2D_fn,        self.contig_SCp_2D_fn+".digest" )
-			shutil.copy( self.contig_SCp_2D_z_fn,      self.contig_SCp_2D_z_fn+".digest" )
-			shutil.copy( self.contig_4D_z_fn,          self.contig_4D_z_fn+".digest" )
-			shutil.copy( self.contig_combo_2D_fn,      self.contig_combo_2D_fn+".digest" )
-			shutil.copy( self.contig_names_fn,         self.contig_names_fn+".digest" )
-			shutil.copy( self.contig_labels_fn,        self.contig_labels_fn+".digest" )
-			shutil.copy( self.contig_cov_fn,           self.contig_cov_fn+".digest" )
-			shutil.copy( self.contig_lengths_fn,       self.contig_lengths_fn+".digest" )
-			drop_appended_lines( self.contig_comp_fn,          n_contigs )
-			drop_appended_lines( self.contig_comp_2D_fn,       n_contigs )
-			drop_appended_lines( self.contig_comp_2D_z_fn,     n_contigs )
-			drop_appended_lines( self.contig_cov_comp_2D_fn,   n_contigs )
-			drop_appended_lines( self.contig_cov_comp_2D_z_fn, n_contigs )
-			drop_appended_lines( self.contig_cov_comp_3D_fn,   n_contigs )
-			drop_appended_lines( self.contig_SCp_fn,           n_contigs )
-			drop_appended_lines( self.contig_SCp_N_fn,         n_contigs )
-			drop_appended_lines( self.contig_SCp_2D_fn,        n_contigs )
-			drop_appended_lines( self.contig_SCp_2D_z_fn,      n_contigs )
-			drop_appended_lines( self.contig_4D_z_fn,          n_contigs )
-			drop_appended_lines( self.contig_combo_2D_fn,      n_contigs )
-			drop_appended_lines( self.contig_names_fn,         n_contigs )
-			drop_appended_lines( self.contig_labels_fn,        n_contigs )
-			drop_appended_lines( self.contig_cov_fn,           n_contigs )
-			drop_appended_lines( self.contig_lengths_fn,       n_contigs )
-			
-			#########
-			warnings.filterwarnings("ignore", category=DeprecationWarning, module="matplotlib")
-			#########
-
-			SCp = np.loadtxt(self.contig_SCp_fn, dtype="float")
-			if len(SCp.shape)!=1:
-				# There is ore than one contig for plotting
-				plotting.scatterplot(np.loadtxt(self.contig_comp_2D_fn,     dtype="float"), np.loadtxt(self.contig_labels_fn, dtype="str"), "contigs.comp.noDigest.scatter.png",     np.loadtxt(self.contig_lengths_fn, dtype="int"), "contigs_comp_noDigest")
-				plotting.scatterplot(np.loadtxt(self.contig_cov_comp_2D_fn, dtype="float"), np.loadtxt(self.contig_labels_fn, dtype="str"), "contigs.cov_comp.noDigest.scatter.png", np.loadtxt(self.contig_lengths_fn, dtype="int"), "contigs_cov_comp_noDigest")
-				plotting.scatterplot(np.loadtxt(self.contig_SCp_2D_fn,      dtype="float"), np.loadtxt(self.contig_labels_fn, dtype="str"), "contigs.SCp.tSNE.noDigest.scatter.png", np.loadtxt(self.contig_lengths_fn, dtype="int"), "contigs_SCp_noDigest")
-				plotting.scatterplot(np.loadtxt(self.contig_combo_2D_fn,    dtype="float"), np.loadtxt(self.contig_labels_fn, dtype="str"), "contigs.combined.noDigest.scatter.png", np.loadtxt(self.contig_lengths_fn, dtype="int"), "contigs_combined_noDigest")
-			else:
-				pass
-		
-		else:
-			#######################################################
-			# Reduce reads composition dimensionality from ND --> 2D
-			#######################################################
-			logging.info("Reducing dimensionality of the READS composition matrix...")
-			sne_CMD = "python ~/gitRepo/eBinning/src/bhtsne.py -v -i %s -l %s -o %s -s reads.comp.scatter.png -n reads_composition" %                     \
-																																	(self.read_comp_fn,   \
-																																	 self.read_labels_fn, \
-																																	 self.read_comp_2D_fn)
-			self.run_tSNE(sne_CMD)
-
-			###############################################
-			# Reduce reads IPD dimensionality from ND --> 2D
-			###############################################
-			logging.info("Reducing dimensionality of the READS SMp matrix...")
-			sne_CMD = "python ~/gitRepo/eBinning/src/bhtsne.py -v -i %s -l %s -o %s -s reads.SMp.tSNE.scatter.png -n reads_SMp_tSNE_%s_motifs_digest" %   \
-																																	(self.read_SMp_fn,    \
-																																	 self.read_labels_fn, \
-																																	 self.read_SMp_2D_fn, \
-																																	 n_motifs)
-			self.run_tSNE(sne_CMD)
-
-			# logging.info("Combining and tSNE reducing the separately reduced SMp/SCp and composition matrices...")
-			# paste_CMD      = "paste %s %s > %s" % (self.read_comp_2D_z_fn, self.read_SMp_2D_z_fn, self.read_4D_z_fn)
-			# sts, stdOutErr = run_OS_command( paste_CMD )
-			# sne_CMD        = "python ~/gitRepo/eBinning/src/bhtsne.py -v -i %s -l %s -o %s -s reads.combined.scatter.png -n reads_combined" %        \
-			# 																														(self.read_4D_z_fn,   \
-			# 																														 self.read_labels_fn, \
-			# 																														 self.read_combo_2D_fn)
-			# self.run_tSNE(sne_CMD)
+		if self.opts.tsne:
+			Reducer = dim_reduce.dim_reducer(self.opts, self.fns, h5_files)
+			Reducer.tsne_reduce()
 
 		if not self.opts.debug:
 			# Keep temp files if -d or --debug is specified
 			shutil.rmtree( self.opts.tmp )
 
 		f = open("ordered_motifs.txt", "w")
-		motifs = np.loadtxt(self.read_SMp_kmers_fn, dtype="str")
+		motifs = np.atleast_1d(np.loadtxt(self.fns["read_SMp_kmers"], dtype="str"))
 		for m in motifs:
 			f.write("%s\n" % m)
 		f.close()

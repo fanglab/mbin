@@ -81,6 +81,8 @@ def __parseArgs():
 	parser.add_option( "--bipartite", action="store_true", help="Search bipartite motifs also [False]" )
 
 	parser.add_option( "--comp_only", action="store_true", help="Only run composition binning (no eBinning) [False]" )
+	
+	parser.add_option( "--tsne", action="store_true", help="Automatically run Barnes-Hut t-stochastic neighbor embedding on each set of features [False]" )
 
 	parser.add_option( "--minContigLength", type="int", help="Min length of contig to consider [10000]" )
 
@@ -123,7 +125,11 @@ def __parseArgs():
 	
 	parser.add_option( "--sam", type="str", help="Path to SAM file with CCS alignments for assigning read-level IPDs to contigs [None]" )
 	
-	parser.add_option( "--control_dir", type="str", help="Location to write control IPD data from WGA sequencing (or where to retrieve previously written control data) [None]" )
+	parser.add_option( "--use_control", type="str", help="Path to existing pickled dictionary of control IPD data from WGA sequencing (e.g. control_ipds.pkl)[None]" )
+
+	parser.add_option( "--write_control", type="str", help="Filename to save control IPD data from WGA sequencing [control_ipds.pkl]" )
+	
+	parser.add_option( "--control_tmp", type="str", help="Temparary directory that is used to scan WGA sequencing data and construct control IPD dictionary [control_ipds.pkl]" )
 	
 	parser.add_option( "--cross_cov_bins", type="str", help="Path to file containing binning results from CONCOCT. Will use to \
 															 improve motif discovery. Only works with contig-level analysis \
@@ -159,6 +165,7 @@ def __parseArgs():
 						 get_cmph5_stats=False,              \
 						 bipartite=False,                    \
 						 comp_only=False,                    \
+						 tsne=False,                         \
 						 skip_motifs=None,                   \
 						 motifs_file=None,                   \
 						 tmp="tmp",                          \
@@ -169,7 +176,9 @@ def __parseArgs():
 						 bas_whitelist=None,                 \
 						 contigs=None,                       \
 						 sam=None,                           \
-						 control_dir="Not_set",              \
+						 use_control=None,                   \
+						 write_control="control_ipds.pkl",   \
+						 control_tmp="control_tmp",          \
 						 cross_cov_bins=None,                \
 						 motif_discov_only=False,            \
 						 subcontig_size=50000)
@@ -183,10 +192,9 @@ def __parseArgs():
 
 	__check_input( opts, args, parser )
 	
-	if opts.control_dir=="Not_set":
-		parser.error("Please specify where to build control IPD data (or where an existing build exists)!")
-
-	opts.control_dir = os.path.abspath(opts.control_dir)
+	opts.write_control = os.path.abspath(opts.write_control)
+	if opts.use_control!=None:
+		opts.use_control   = os.path.abspath(opts.use_control)
 
 	if opts.sam!=None and opts.motifs_file==None:
 		parser.error("Use of SAM file for read<-->contig mapping only supported with input motifs file using --motifs_file!" )
@@ -201,7 +209,7 @@ def __parseArgs():
 	# 
 	# wga_cmp_h5 = an aligned_reads.cmp.h5 file of WGA alignments
 	# wga_bas_h5 = an unaligned file of WGA reads
-	opts.wga_cmp_h5  = "UNSPECIFIED/aligned_reads.cmp.h5"
+	opts.wga_cmp_h5  = "/Users/beaulj01/thesis/mbin_tests/cmp/reorg_controls/P6_C4_Cdiff_PID22134_aligned_reads.cmp.h5"
 	opts.wga_bas_h5  = "UNSPECIFIED/m*****.1.bax.h5"
 	#####################
 

@@ -220,8 +220,7 @@ class subread_motif_processor:
 			self.tmp_fs.add(f_strand)
 			
 			if self.opts.motifs_file!=None and self.opts.subtract_control:
-				local_pkl      = os.path.basename(self.opts.control_pkl)+".wdegen"
-				control_ipds_d = pickle.load( open(local_pkl,"rb" ) )
+				control_ipds_d = pickle.load( open(self.opts.write_control,"rb" ) )
 
 			for i,(subread_ipds,subread_comps,readname,subread_length,strand) in enumerate(to_dump[refName]):
 				ipd_kmers   = [motif                  for motif in subread_ipds.iterkeys()]
