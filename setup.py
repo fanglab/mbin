@@ -13,6 +13,7 @@ with open('HISTORY.rst') as history_file:
 
 requirements = [
     'pysam == 0.10.0',
+    'numpy>=1.7.1',
     'h5py >= 2.0.1',
     'pbcore >= 0.9.4',
     'scipy >= 0.12.0',
