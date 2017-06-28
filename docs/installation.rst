@@ -40,25 +40,25 @@ mBin should be installed in a Python virtual environment using `virtualenv`_, wh
 
 Virtualenv can be installed using ``pip``:
 
-.. code-block: console
+.. code-block:: console
 	
 	$ pip install virtualenv
 
 Once installed, navigate to the directory where you would like to keep the virtual environment and create a virtual environment called ``venv``:
 
-.. code-block: console
+.. code-block:: console
 
 	$ virtualenv venv
 
 Finally, activate this virtual environment ``venv``:
 
-.. code-block: console
+.. code-block:: console
 
 	$ . venv/bin/activate
 
 Once activated, you are now operating inside the ``venv`` and should see the following on you command line:
 
-.. code-block: console
+.. code-block:: console
 
 	(venv)<COMMAND LINE>
 
@@ -68,19 +68,19 @@ Installing mBin
 
 With the virtual environment activated, install numpy using ``pip``:
 
-.. code-block: console
+.. code-block:: console
 	
 	$ pip install numpy
 
 Next, clone the mBin repository to your desired location:
 
-.. code-block: console
+.. code-block:: console
 
 	$ git clone https://github.com/fanglab/mbin.git
 
 Navigate to the cloned ``mbin`` directory and run:
 
-.. code-block: console
+.. code-block:: console
 
 	$ python setup.py install
 
