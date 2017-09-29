@@ -1459,13 +1459,14 @@ class mbin_runner:
 
 				# pickle.dump(control_means, open(self.opts.write_control, "wb"))
 
-			logging.info("Keeping %s motifs for further analysis:" % len(keeper_motifs))
+			logging.info("Keeping %s motifs for further analysis" % len(keeper_motifs))
 			self.motifs = list(keeper_motifs)
 			motifs_fn   = "motifs.txt"
 			n_motifs    = len(keeper_motifs)
 			f_motifs    = open(motifs_fn, "w")
 			if n_motifs == 0 and not self.opts.motif_discov_only:
 				keeper_motifs = set(["GATC-1"])
+				logging.info("  -- Adding GATC-1 motif so that we're analyzing something")
 			for motif in keeper_motifs:
 				f_motifs.write("%s\n" % motif)
 			f_motifs.close()

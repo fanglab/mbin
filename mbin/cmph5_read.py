@@ -241,12 +241,6 @@ class subread_motif_processor:
 				else:
 					for motif in subread_ipds.iterkeys():
 						ipd_means.append(subread_ipds[motif][1])
-						
-
-
-						# if motif=="ACGNNNNNGTCA-0" and subread_ipds[motif][0]>0:
-						# 	print subread_ipds[motif][1]
-					
 				################
 
 
@@ -307,17 +301,6 @@ class subread_motif_processor:
 																	   self.bi_motifs, \
 																	   self.opts )
 				
-
-
-
-
-				# if subread_ipds["CGCGGA-5"][0]>0:
-				# 	print subread_ipds["CGCGGA-5"]
-
-
-
-
-
 				to_dump[ref_contig].append( (subread_ipds,subread_comps,readname,len(sub.ref_str),sub.strand) )
 				# Dump subread IPD and comp data to contig-specific file
 				if len(to_dump[ref_contig])%chunksize==0 and len(to_dump[ref_contig])!=0:

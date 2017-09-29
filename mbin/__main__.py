@@ -23,22 +23,19 @@ def __parseArgs():
 
 	For contigs:
 
-	mbin -i --procs=4 --h5_type=cmp --h5=cmp.h5.fofn --contigs=polished_assembly.fasta --real_mix --control_dir=./control_data
-
-	where cmp.h5.fofn has the format:
-	aligned_read.cmp.h5 labelname
+	mbin -i --procs=4 --h5_type=cmp --contigs=polished_assembly.fasta --use_control=control_means.pkl aligned_reads.cmp.h5
 
 
 
 	For unaligned reads:
 
-	mbin -i --procs=4 --h5_type=bas --h5=bas.h5.fofn --readlength_min=20000 --real_mix --control_dir=./control_data --motifs_file=motifs.txt
+	mbin -i --procs=4 --h5_type=bas --readlength_min=20000 --use_control=control_means.pkl --motifs_file=motifs.txt bas.h5.fofn
 
 	where bas.h5.fofn has the format:
-	smrtcell1.bas.h5 labelname
-	smrtcell2.bas.h5 labelname
-	smrtcell3.bas.h5 labelname
-	smrtcell4.bas.h5 labelname
+	smrtcell1.bas.h5
+	smrtcell2.bas.h5
+	smrtcell3.bas.h5
+	...
 
 	"""
 
@@ -258,7 +255,7 @@ def __check_input( opts, args, parser ):
 		opts.h5_files = [input_fn]
 
 	if (opts.h5_type=="cmp" and opts.contigs==None):
-		parser.error("Please specify the fasta file corresponding to the alignments in %s!" % input_fn)
+		parser.error("Please specify the fasta file used for the alignments in %s!" % input_fn)
 
 	if opts.h5_type=="bas":
 		input_lines = open(input_fn, "rb").read().split("\n")

@@ -85,7 +85,9 @@ Navigate to the cloned ``mbin`` directory and install using the ``setup.py`` fil
 	$ cd mbin
 	$ python setup.py install
 
-
+Testing installation
+^^^^^^^^^^^^^^^^^^^^
+IN PROGRESS
 
 
 
