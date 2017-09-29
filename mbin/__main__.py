@@ -1,7 +1,7 @@
 import os,sys
 import optparse
 import logging
-from mbin import mbin_runner
+from mbin import mbinRunner
 
 def main(args=None):
 	"""The main routine."""
@@ -9,7 +9,7 @@ def main(args=None):
 	opts,args = __parseArgs()
 	__initLog(opts)
 
-	mBin = mbin_runner(opts,args)
+	mBin = mbinRunner(opts,args)
 	mBin.run()
 
 	print >> sys.stderr, "mBin has finished running. See log for details."

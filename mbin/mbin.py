@@ -50,11 +50,10 @@ def process_contig_chunk( args ):
 	cut_CMDs      = args[2]
 	kmers         = args[3]
 	cols_chunk    = args[4]
-	min_motif_N   = args[5]
-	contig_id     = args[6]
-	n_chunks      = args[7]
-	n_contigs     = args[8]
-	opts          = args[9]
+	contig_id     = args[5]
+	n_chunks      = args[6]
+	n_contigs     = args[7]
+	opts          = args[8]
 	logging.info("  - Contig %s/%s: chunk %s/%s" % ((contig_id+1), n_contigs, (chunk_id+1), (n_chunks+1)))
 	control_means = pickle.load(open(control_pkl, "rb"))
 	contig_motifs = {}
@@ -302,7 +301,7 @@ def chunk_case_control_files( control_means_fn, contig, j, contigs_N, minMotifIP
 			out_fn   = fn+".sub.%s" % i
 			cut_CMD  = "cut -d$\'\\t\' -f%s %s > %s" % (cut_cols, in_fn, out_fn)
 			cut_CMDs.append(cut_CMD)
-		args.append( (i, control_means_fn, cut_CMDs, kmers, cols_chunk, min_motif_N, j, n_chunks, contigs_N, opts) )
+		args.append( (i, control_means_fn, cut_CMDs, kmers, cols_chunk, j, n_chunks, contigs_N, opts) )
 	results = launch_pool(procs, process_contig_chunk, args)
 	for i,result in enumerate(results):
 		for motif in result[0].keys(): # contig_SCp,contig_SCp_N
@@ -479,10 +478,10 @@ def combine_subreads_for_read_level( tup ):
 
 
 
-class mbin_runner:
-	def __init__( self, opts, args ):
+class mbinRunner:
+	def __init__( self, opts ):
 		"""
-		The options from __main__.py are passed to mbin_runner
+		The options from __main__.py are passed to mbinRunner
 		"""
 		self.opts = opts
 		self.fns  = {}
@@ -587,30 +586,30 @@ class mbin_runner:
 		for i in xrange(0, len(l), n):
 			yield l[i:i+n]
 
-	def launch_data_loader( self, h5_file, N_reads, movie_i ):
+	def launch_data_loader( self, h5_file, N_reads, movie_i, opts ):
 		logging.info("Loading data from %s..." % h5_file)
-		results = self.launch_subprocs( h5_file, N_reads )
-		if self.opts.h5_type=="cmp":
+		results = self.launch_subprocs( h5_file, N_reads, opts )
+		if opts.h5_type=="cmp":
 			contig_tmps = defaultdict(list)
 			for p,result in enumerate(results):
 				for fn in result:
 					contig = "_".join(fn.split("/")[1].split("_")[:-1])
 					contig_tmps[contig].append(fn)
 			logging.info("Catting contig-specific data from parallel processes...")
-			args    = [(contig, self.opts.tmp, i, len(contig_tmps.keys())) for i,contig in enumerate(contig_tmps.keys())]
-			results = launch_pool( self.opts.procs, cat_contig_files_from_subprocs, args )
-		elif self.opts.h5_type=="bas":
+			args    = [(contig, opts.tmp, i, len(contig_tmps.keys())) for i,contig in enumerate(contig_tmps.keys())]
+			results = launch_pool( opts.procs, cat_contig_files_from_subprocs, args )
+		elif opts.h5_type=="bas":
 			logging.info("Catting subprocess-specific data from parallel processes...")
 			subproc_tmp_files = defaultdict(list)
 			for result in results:
 				for fn in result:
 					ftype = fn.split(os.sep)[-1].split("subreads_")[-1]
-					subproc_tmp_files[ftype].append(os.path.join(self.opts.tmp, fn))
+					subproc_tmp_files[ftype].append(os.path.join(opts.tmp, fn))
 			
-			results = cat_subreads_files_from_subprocs( subproc_tmp_files, movie_i, self.opts )			
+			results = cat_subreads_files_from_subprocs( subproc_tmp_files, movie_i, opts )			
 			logging.info("Done.")	
 
-		for chunkdir in glob.glob( os.path.join(self.opts.tmp, "chunk_*")):
+		for chunkdir in glob.glob( os.path.join(opts.tmp, "chunk_*")):
 			shutil.rmtree(chunkdir)
 
 	def fasta_iter( self, fasta_name ):
@@ -1176,7 +1175,7 @@ class mbin_runner:
 			logging.info("   -- Being created in %s" % self.opts.control_tmp)
 			controls.goto_control_output_dir()
 			self.opts = controls.scan_WGA_h5()
-			self.launch_data_loader( control_h5, filter_N_reads, 1 )
+			self.launch_data_loader( control_h5, filter_N_reads, 1, self.opts )
 			controls.analyze_WGA_reads()
 			logging.info("Done.")
 
@@ -1247,7 +1246,7 @@ class mbin_runner:
 			self.opts.control_run = False
 			for i,h5_file in enumerate(h5_files):
 				logging.info("Creating %s barcodes (%s motifs) from %s..." % (filter_N_reads, (len(self.motifs)+len(self.bi_motifs)), h5_file))
-				self.launch_data_loader( h5_file, filter_N_reads, i )
+				self.launch_data_loader( h5_file, filter_N_reads, i, self.opts )
 				logging.info("Done.")
 
 			if self.opts.h5_type=="bas":
@@ -1502,7 +1501,7 @@ class mbin_runner:
 		
 		for i,h5_file in enumerate(h5_files):
 			logging.info("Creating subread-level barcodes (%s motifs) from %s..." % (len(keeper_motifs), h5_file))
-			self.launch_data_loader(  h5_file, self.opts.N_reads, i )
+			self.launch_data_loader(  h5_file, self.opts.N_reads, i, self.opts )
 			logging.info("Done.")
 
 
@@ -1565,7 +1564,7 @@ class mbin_runner:
 
 		logging.info("Pipeline finished.")
 
-	def launch_subprocs( self, h5_file, N_reads ):
+	def launch_subprocs( self, h5_file, N_reads, opts ):
 		"""
 		"""
 		logging.debug("Creating tasks...")
@@ -1573,15 +1572,15 @@ class mbin_runner:
 		results = multiprocessing.Queue()
 		logging.debug("Done.")
 
-		if self.opts.h5_type=="cmp":
+		if opts.h5_type=="cmp":
 			reader     = CmpH5Reader(h5_file)
 			to_check   = reader
 			entries    = range(len(to_check))
-		elif self.opts.h5_type=="bas":
+		elif opts.h5_type=="bas":
 			reader     = BasH5Reader(h5_file)
-			if self.opts.bas_whitelist != None and not self.opts.control_run:
+			if opts.bas_whitelist != None and not opts.control_run:
 				logging.info("Intersecting with whitelist...")
-				bas_whitelist = set(np.loadtxt(self.opts.bas_whitelist, dtype="str"))
+				bas_whitelist = set(np.loadtxt(opts.bas_whitelist, dtype="str"))
 				to_check = [z for z in reader if z.zmwName in bas_whitelist]
 			else:
 				to_check = reader
@@ -1589,22 +1588,22 @@ class mbin_runner:
 			pre      = len(to_check)
 			logging.info("Starting with %s reads..." % pre)
 			to_check = [z for z in to_check if z.zmwMetric("Productivity")==1 and \
-											   z.zmwMetric("ReadScore")>self.opts.minReadScore and \
-											   z.zmwMetric("Pausiness")<self.opts.maxPausiness]
+											   z.zmwMetric("ReadScore")>opts.minReadScore and \
+											   z.zmwMetric("Pausiness")<opts.maxPausiness]
 			post     = len(to_check)
 			logging.info("Dropped %s reads due to poor zmw metrics (%s remain)" % ((pre-post),post))
 			# Filter on read length 
 			pre      = post
-			to_check = [z for z in to_check if np.sum([len(sub) for sub in z.subreads])>=self.opts.readlength_min]
+			to_check = [z for z in to_check if np.sum([len(sub) for sub in z.subreads])>=opts.readlength_min]
 			post     = len(to_check)
-			logging.info("Dropped %s reads < %s (%s remain)" % ((pre-post),self.opts.readlength_min, post))
+			logging.info("Dropped %s reads < %s (%s remain)" % ((pre-post),opts.readlength_min, post))
 			entries  = np.array([z.holeNumber for z in to_check])
 
 		reader.close()
-		if len(entries) <= self.opts.procs * 5:
+		if len(entries) <= opts.procs * 5:
 			procs = 1
 		else:
-			procs = self.opts.procs
+			procs = opts.procs
 
 		logging.debug("Starting consumers...")
 		consumers     = [ multiproc.Consumer(tasks, results) for i in xrange(procs) ]
@@ -1631,11 +1630,11 @@ class mbin_runner:
 			# If --N_reads used, this ensures we touch as many contigs as possible
 			idx = entries_chunks[chunk_id]
 			np.random.shuffle(idx)
-			if self.opts.h5_type=="cmp":
-				tasks.put(cmph5_read.subread_motif_processor( h5_file, chunk_id, idx, n, self.motifs, self.bi_motifs, self.opts) )
+			if opts.h5_type=="cmp":
+				tasks.put(cmph5_read.subread_motif_processor( h5_file, chunk_id, idx, n, opts.motifs, opts.bi_motifs, opts) )
 				logging.debug("...%s (%s alignments)" % (chunk_id, len(entries)))
-			elif self.opts.h5_type=="bas":
-				tasks.put(baxh5_read.subread_motif_processor( h5_file, chunk_id, idx, n, self.motifs, self.bi_motifs, self.opts) )
+			elif opts.h5_type=="bas":
+				tasks.put(baxh5_read.subread_motif_processor( h5_file, chunk_id, idx, n, opts.motifs, opts.bi_motifs, opts) )
 				logging.debug("...%s (%s reads)" % (chunk_id, len(entries)))
 		logging.debug("Done")
 		
@@ -1659,5 +1658,5 @@ class mbin_runner:
 
 
 if __name__=="__main__":
-	app     = mbin_runner()
+	app     = mbinRunner()
 	results = app.run()
