@@ -6,7 +6,6 @@ from pbcore.io.BasH5IO import BasH5Reader
 import glob
 import numpy as np
 import logging
-import cmph5_read
 import shutil
 import pickle
 import math
@@ -16,12 +15,6 @@ import motif_tools
 def launch():
 	opts,control_h5 = __parseArgs()
 	__initLog(opts)
-
-	opts.h5_type        = "cmp"
-	opts.cross_cov_bins = None
-	opts.sam            = None
-	opts.motifs_file    = None
-	opts.skip_motifs    = None
 
 	extract_controls(opts, control_h5)
 
@@ -39,6 +32,7 @@ def extract_controls(opts, control_h5):
 	opts.motifs      = motifs
 	opts.bi_motifs   = bi_motifs
 
+	logging.info("")
 	logging.info("Preparing to create new control data in %s" % opts.control_tmp)
 	controls.goto_control_output_dir()
 	
@@ -49,6 +43,7 @@ def extract_controls(opts, control_h5):
 	
 	controls.analyze_WGA_reads()
 	logging.info("Done.")
+	logging.info("")
 
 	# Building dictionary of mean control IPD values for each motif
 	logging.info("Building dictionary of control values for all motifs...")
@@ -57,17 +52,15 @@ def extract_controls(opts, control_h5):
 
 	
 	control_means    = controls.build_control_IPD_dict(motifs, bi_motifs)
-	logging.info("Done.")
-	
 	controls.return_to_orig_dir()
 
+	logging.info("")
 	logging.info("Cleaning up temp files from control data processing...")
 	shutil.rmtree(opts.control_tmp)
-	logging.info("Done.")
 
 	# Controls are loaded into control_means, now pickle them for easy
 	# passing between parallel processes
-	pickle.dump(control_means, open(opts.write_control, "wb"))
+	pickle.dump(control_means, open(opts.control_pkl_name, "wb"))
 
 def chunks( l, n ):
 	"""
@@ -79,11 +72,11 @@ def chunks( l, n ):
 def __parseArgs():
 	"""Handle command line argument parsing"""
 
-	usage = """%prog [--help] [options]
+	usage = """%prog [--help] [options] wga_input_hdf5
 
 	Example:
 
-	buildcontrols -i --procs=4 --contigs=polished_assembly.fasta --write_control=control_means.pkl wga_aligned_reads.cmp.h5
+	buildcontrols -i --procs=4 --control_pkl_name=control_means.pkl wga_aligned_reads.cmp.h5
 
 	"""
 
@@ -93,41 +86,29 @@ def __parseArgs():
 
 	parser.add_option( "-i", "--info", action="store_true", help="Add basic logging" )
 
-	parser.add_option( "--logFile", type="str", help="Write logging to file [log.out]" )
+	parser.add_option( "--logFile", type="str", help="Write logging to file [log.controls]" )
 
 	parser.add_option( "--subreadlength_min", type="int", help="Minimum subread length to include for analysis [100]" )
 
 	parser.add_option( "--readlength_min", type="int", help="Minimum read length to include for analysis [100]" )
 
-	parser.add_option( "--readlength_max", type="int", help="Maximum read length to include for analysis [10000000]" )
-
-	parser.add_option( "--minQV", type="float", help="If base has QV < minQV, do not include [0]" )
-
-	parser.add_option( "--min_IPD", type="float", help="If motif IPD is < min_IPD, set to zero [1.0]" )
-
-	parser.add_option( "--min_pct", type="float", help="Remove motifs if they are significant in < min_pct of all reads [5.0]" )
-
 	parser.add_option( "--min_kmer", type="int", help="Minimum motif size to scan (contiguous motifs) [4]" )
 
 	parser.add_option( "--max_kmer", type="int", help="Maximum motif size to scan (contiguous motifs) [6]" )
 
-	parser.add_option( "--mod_bases", type="str", help="String containing bases to query for mods ['A']" )
+	parser.add_option( "--no_bipartite", action="store_true", help="Omit bipartite motifs [False]" )
+	
+	parser.add_option( "--bipart_first", type="str", help="Bipartite motif configuration: acceptable length of first determinate component (comma-separated string of integers) [3,4]" )
+	
+	parser.add_option( "--bipart_Ns", type="str", help="Bipartite motif configuration: acceptable length of middle indeterminate component (comma-separated string of integers) [5,6]" )
+	
+	parser.add_option( "--bipart_second", type="str", help="Bipartite motif configuration: acceptable length of second determinate component (comma-separated string of integers) [3,4]" )
 
-	parser.add_option( "--comp_kmer", type="int", help="Kmer size to use for sequence composition measurements [5]" )
+	parser.add_option( "--mod_bases", type="str", help="String containing bases to query for mods. Changing this is not recommended ['A'] ['A']" )
 
 	parser.add_option( "--minAcc", type="float", help="Min subread accuracy of read [0.8]" )
 
 	parser.add_option( "--minMapQV", type="float", help="Min mapping QV of aligned read [240]" )
-
-	parser.add_option( "--bipartite", action="store_true", help="Search bipartite motifs also [False]" )
-
-	parser.add_option( "--minContigLength", type="int", help="Min length of contig to consider [10000]" )
-
-	parser.add_option( "--minContigForMotifs", type="int", help="Min length of contig to use when getting top motifs [50000]" )
-
-	parser.add_option( "--motifs_file", type="str", help="File containing specific motifs to include [None]" )
-
-	parser.add_option( "--tmp", type="str", help="Directory where numerous temporary files will be written [tmp]" )
 
 	parser.add_option( "--procs", type="int", help="Number of cores to use [4]" )
 
@@ -135,46 +116,66 @@ def __parseArgs():
 	
 	parser.add_option( "--min_motif_count", type="int", help="Number of motif sites required in WGA data to be included in controls dictionary [10]" )
 
-	parser.add_option( "--contigs", type="str", help="Fasta file containing entries for the assembled contigs [None]" )
+	parser.add_option( "--control_pkl_name", type="str", help="Filename to save control IPD data from WGA sequencing [control_ipds.pkl]" )
 	
-	parser.add_option( "--write_control", type="str", help="Filename to save control IPD data from WGA sequencing [control_ipds.pkl]" )
-	
-	parser.add_option( "--control_tmp", type="str", help="Temparary directory that is used to scan WGA sequencing data and construct control IPD dictionary [control_ipds.pkl]" )
-	
-	parser.set_defaults( logFile="log.controls",             \
+	parser.set_defaults( logFile="log.buildcontrols",        \
 						 info=False,                         \
 						 debug=False,                        \
-						 subtract_control=True,              \
 						 subreadlength_min=100,              \
 						 readlength_min=100,                 \
-						 readlength_max=10000000,            \
-						 minQV=0.0,                          \
-						 min_IPD=1.0,                        \
-						 min_pct=5.0,                        \
 						 min_kmer=4,                         \
 						 max_kmer=6,                         \
-						 comp_kmer=5,                        \
+						 no_bipartite=False,                 \
+						 bipart_first="3,4",                 \
+						 bipart_Ns="5,6",                    \
+						 bipart_second="3,4",                \
 						 mod_bases="A",                      \
 						 minAcc=0.8,                         \
 						 minMapQV=240,                       \
-						 minContigLength=10000,              \
-						 bipartite=False,                    \
-						 comp_only=False,                    \
-						 tmp="tmp",                          \
 						 procs=4,                            \
 						 N_reads=1000000000,                 \
 						 min_motif_count=10,                 \
-						 contigs=None,                       \
-						 write_control="control_ipds.pkl",   \
-						 control_tmp="control_tmp")
+						 control_pkl_name="control_ipds.pkl")
 
 	opts, args         = parser.parse_args( )
 	control_h5         = __check_input( opts, args, parser )
 
-	opts.bipart_config = [(3,4), (5,6), (3,4)]
+	if opts.no_bipartite:
+		opts.bipartite = False
+	else:
+		opts.bipartite = True
 
+	############################################
+	# Define the types of bipartite motifs to 
+	# include in the analysis. This describes the
+	# acceptable sizes of the three components of
+	# bipartite motifs. For example, the motif 
+	# ACCT/NNNNN/CTT (first/Ns/last) would be 
+	# described by 4/5/3.
 	
-	opts.write_control = os.path.abspath(opts.write_control)
+	first  = map(lambda x: int(x), opts.bipart_first.split(","))
+	middle = map(lambda x: int(x), opts.bipart_Ns.split(","))
+	second = map(lambda x: int(x), opts.bipart_second.split(","))
+	opts.bipart_config   = [(first), (middle), (second)]
+	
+	# As set, acceptible bipartite motifs would have
+	# the following component lengths.
+	# First: 3 or 4 ACGT bases
+	# Ns: 5 or 6 unspecified N bases
+	# Last: 3 or 4 ACGT bases
+	############################################
+
+	opts.control_tmp     = "ctrl_tmp"
+	opts.tmp             = "tmp"
+	opts.minContigLength = 0
+	opts.comp_kmer       = 5
+	opts.h5_type         = "cmp"
+	opts.cross_cov_bins  = None
+	opts.sam             = None
+	opts.motifs_file     = None
+	opts.skip_motifs     = None
+	
+	opts.control_pkl_name = os.path.abspath(opts.control_pkl_name)
 
 	return opts,control_h5
 
@@ -218,8 +219,8 @@ def __check_input( opts, args, parser ):
 	if control_h5[-6:]!="cmp.h5":
 		parser.error("Please input a *.cmp.h5 file of aligned reads")
 
-	if opts.contigs==None:
-		parser.error("Please specify the fasta file used for the alignments in %s!" % control_h5)
+	# if opts.contigs==None:
+	# 	parser.error("Please specify the fasta file used for the alignments in %s!" % control_h5)
 
 	if len(args) != 1:
 		parser.error( "Expected 1 argument." )
@@ -313,7 +314,7 @@ class ControlRunner:
 		for entry in reader.referenceInfoTable:
 			name      = entry[3]
 			length    = entry[4]
-			slug_name = cmph5_read.slugify(name)
+			slug_name = mbin.slugify(name)
 			self.opts.cmph5_contig_lens[self.control_h5][slug_name] = length
 		reader.close()
 
@@ -336,7 +337,7 @@ class ControlRunner:
 				to_cat = glob.glob( os.path.join(self.opts.tmp, "unitig_*_%s" % ftype) )
 				to_cat.sort()
 				outname = os.path.join(self.opts.tmp, "control_%s" % ftype )
-				cmph5_read.cat_list_of_files(to_cat, outname)
+				mbin.cat_list_of_files(to_cat, outname)
 		
 	def chunk_control_matrices( self, control_ipds_fn, control_ipds_N_fn, control_kmers_fn ):
 		"""
@@ -416,13 +417,13 @@ class ControlRunner:
 		ipds_N_fns.sort()
 		comp_N_fns.sort()
 		
-		cmph5_read.cat_list_of_files(labels_fns,    os.path.join(self.opts.tmp, "control_labels.tmp"))
-		cmph5_read.cat_list_of_files(strands_fns,   os.path.join(self.opts.tmp, "control_strands.tmp"))
-		cmph5_read.cat_list_of_files(lengths_fns,   os.path.join(self.opts.tmp, "control_lengths.tmp"))
-		cmph5_read.cat_list_of_files(readnames_fns, os.path.join(self.opts.tmp, "control_names.tmp"))
-		cmph5_read.cat_list_of_files(ipds_fns,      os.path.join(self.opts.tmp, "control_ipds.tmp"))
-		cmph5_read.cat_list_of_files(ipds_N_fns,    os.path.join(self.opts.tmp, "control_ipdsN.tmp"))
-		cmph5_read.cat_list_of_files(comp_N_fns,    os.path.join(self.opts.tmp, "control_compN.tmp"))
+		mbin.cat_list_of_files(labels_fns,    os.path.join(self.opts.tmp, "control_labels.tmp"))
+		mbin.cat_list_of_files(strands_fns,   os.path.join(self.opts.tmp, "control_strands.tmp"))
+		mbin.cat_list_of_files(lengths_fns,   os.path.join(self.opts.tmp, "control_lengths.tmp"))
+		mbin.cat_list_of_files(readnames_fns, os.path.join(self.opts.tmp, "control_names.tmp"))
+		mbin.cat_list_of_files(ipds_fns,      os.path.join(self.opts.tmp, "control_ipds.tmp"))
+		mbin.cat_list_of_files(ipds_N_fns,    os.path.join(self.opts.tmp, "control_ipdsN.tmp"))
+		mbin.cat_list_of_files(comp_N_fns,    os.path.join(self.opts.tmp, "control_compN.tmp"))
 		
 		shutil.copy(comp_kmers_fns[0],              os.path.join(self.opts.tmp, "control_compkmers.tmp"))
 		shutil.copy(ipds_kmers_fns[0],              os.path.join(self.opts.tmp, "control_ipdskmers.tmp"))
@@ -443,12 +444,13 @@ class ControlRunner:
 		control_means,not_found = self.chunk_control_matrices(control_ipds_fn[0], control_ipds_N_fn[0], control_kmers_fn[0])
 
 		if not_found > 0:
-			logging.warning("WARNING: %s/%s motifs did not have sufficient coverage in control data!" % (not_found, (len(motifs)+len(bi_motifs))))
-			logging.warning("   * If this is alarming, try increasing --N_motif_reads to get higher coverage and make sure N_reads > N_motif_reads")
+			logging.info("")
+			logging.warning("WARNING: could not find sufficient instances (>=%s) for %s motifs (out of %s total) in control data!" % (self.opts.min_motif_count, not_found, (len(motifs)+len(bi_motifs))))
+			logging.warning("   * If this is alarming, try reducing --min_motif_count, although you just might not have those motifs in your reference sequence.")
 		
-		logging.info("Writing control data to a pickled file for future re-use: %s" % self.opts.write_control)
-		pickle.dump( control_means, open( self.opts.write_control, "wb" ) )
-		logging.info("Done.")
+		logging.info("")
+		logging.info("Writing control data to a pickled file: %s" % self.opts.control_pkl_name)
+		pickle.dump( control_means, open( self.opts.control_pkl_name, "wb" ) )
 
 		return control_means
 

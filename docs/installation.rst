@@ -85,6 +85,37 @@ Navigate to the cloned ``mbin`` directory and install using the ``setup.py`` fil
 	$ cd mbin
 	$ python setup.py install
 
+
+Installing t-SNE
+----------------
+
+Finally, we must install the Barnes-Hut implementation of the t-SNE algorithm in order to create 2-D maps of methylation (and other) features for binning. Full details on the BH-tSNE algoritm and wrapper script can be found here_. First, we pull the repository from GitHub and enter the directory:
+
+.. _here: https://github.com/lvdmaaten/bhtsne
+
+.. code-block:: console
+
+	$ git clone https://github.com/lvdmaaten/bhtsne.git
+	$ cd bhtsne
+
+Next we compile the source code to get the executable ``bh_tsne``:
+
+.. code-block:: console
+
+	$ g++ sptree.cpp tsne.cpp tsne_main.cpp -o bh_tsne -O2
+
+Once the executable is compiled, we'll need to copy both ``bh_tsne`` and the ``bhtsne.py`` Python wrapper script to the mbin/mbin directory (which contains profiles.py, visualize.py, motifs.py, etc.):
+
+.. code-block:: console
+
+	$ cp bh_tsne <PATH TO MBIN REPOSITORY>/mbin
+	$ cp bhtsne.py <PATH TO MBIN REPOSITORY>/mbin
+
+
+
+
+
+
 Testing installation
 ^^^^^^^^^^^^^^^^^^^^
 IN PROGRESS

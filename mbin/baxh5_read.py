@@ -108,6 +108,7 @@ class subread_motif_processor:
 			ipds_fn        = "subreads_ipds.tmp"     
 			ipds_N_fn      = "subreads_ipdsN.tmp"   
 			comp_N_fn      = "subreads_compN.tmp"
+
 			self.tmp_fns.add( os.path.join(self.chunkdir, subname_fn) )
 			self.tmp_fns.add( os.path.join(self.chunkdir, label_fn) )
 			self.tmp_fns.add( os.path.join(self.chunkdir, length_fn) )
@@ -125,6 +126,10 @@ class subread_motif_processor:
 			self.tmp_fs.add(f_ipds)
 			self.tmp_fs.add(f_ipds_N)
 			self.tmp_fs.add(f_comp_N)
+			
+			if self.opts.motifs_file!=None and self.opts.subtract_control:
+				control_ipds_d = pickle.load( open(self.opts.control_pkl_name,"rb" ) )
+
 			for i,(subread_ipds,subread_comps,readname,subread_length) in enumerate(to_dump):
 				for motif in subread_ipds.iterkeys():
 					if subread_ipds[motif]==[]:
@@ -132,6 +137,19 @@ class subread_motif_processor:
 				ipd_kmers   = [motif                                            for motif in subread_ipds.iterkeys()]
 				ipd_means   = [subread_ipds[motif][1]                           for motif in subread_ipds.iterkeys()]
 				ipd_counts  = [subread_ipds[motif][0]                           for motif in subread_ipds.iterkeys()]
+
+				ipd_means = []
+				if self.opts.motifs_file!=None and self.opts.subtract_control:
+					for motif in subread_ipds.iterkeys():
+						if subread_ipds[motif][1] != 0.0:
+							w_control_sub = subread_ipds[motif][1] - control_ipds_d[motif]
+							print readname, motif, subread_ipds[motif][1], w_control_sub
+							ipd_means.append(w_control_sub)
+						else: # Don't subtract control if no ipd values are available (i.e. IPD score == 0.0)
+							ipd_means.append(subread_ipds[motif][1])
+				else:
+					for motif in subread_ipds.iterkeys():
+						ipd_means.append(subread_ipds[motif][1])
 
 				comp_kmers  = np.array( [motif   for motif,ipds in subread_comps.items()] )
 				comp_counts = np.array( [ipds    for motif,ipds in subread_comps.items()] )
@@ -275,25 +293,3 @@ class subread_motif_processor:
 		reader.close()
 
 		return self.tmp_fns
-	
-def cat_list_of_files( in_fns, out_fn, del_ins=True ):
-	"""
-	Given a list of filenames, cat them together into a single file. Then cleans up pre-catted
-	single files.
-	"""
-	if len(in_fns)==0:
-		raise Exception("There are no files to cat!")
-		
-	cat_CMD   = "cat %s > %s" % (" ".join(in_fns), out_fn)
-	p         = subprocess.Popen(cat_CMD, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-	stdOutErr = p.communicate()
-	sts       = p.returncode
-	if sts != 0:
-		raise Exception("Failed cat command: %s" % cat_CMD)
-	if del_ins:
-		for fn in in_fns:
-			try:
-				os.remove(fn)
-			except OSError:
-				pass
-	return out_fn

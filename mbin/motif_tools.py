@@ -80,6 +80,25 @@ def build_motif_dict( opts ):
 		logging.info("Done: %s possible bipartite motifs\n" % len(bi_motifs))
 	return motifs, bi_motifs
 
+def add_degen_motifs( motifs, orig_control_means ):
+	"""
+	If a predetermined set of motifs is input using --motifs_file option,
+	create a new entry for the degen motif in the control values dictionary
+	by combining the existing data from the various specified versions 
+	of the motif.
+	"""
+	keys_str          = "\n".join(orig_control_means.keys())
+	new_control_means = orig_control_means
+	for m in motifs:
+		new_m = sub_bases(m)
+		if new_m!=m:
+			matches    = re.findall(new_m, keys_str)
+			degen_mean = np.mean([orig_control_means[match] for match in matches])
+			new_control_means[m] = degen_mean
+			logging.info("Adding degenerate motif %s to controls: %s" % (m, degen_mean))
+
+	return new_control_means
+
 def sub_bases( motif ):
 	"""
 	Return all possible specifications of a motif with degenerate bases.

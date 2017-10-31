@@ -16,13 +16,6 @@ import unicodedata
 import warnings
 warnings.simplefilter("error")
 
-def slugify(text):
-	"""Generates an ASCII-only slug."""
-	slug = unicodedata.normalize("NFKD",unicode(text)).encode("ascii", "ignore")
-	slug = re.sub(r"[^\w]+", " ", slug)
-	slug = "-".join(slug.lower().strip().split())
-	return slug
-
 class subread_motif_processor:
 	def __init__( self, cmph5, chunk_id, idx, N_target_reads, motifs, bi_motifs, opts ):
 		self.cmph5          = cmph5
@@ -189,7 +182,7 @@ class subread_motif_processor:
 		to_dump = defaultdict(list)
 
 		def dump_data_to_contig_files( refName, to_dump, read_labs ):
-			refName           = slugify(refName)
+			refName           = mbin.slugify(refName)
 			ref_subname_fn    = "%s_readnames.tmp"    % refName
 			ref_label_fn      = "%s_labels.tmp"       % refName
 			ref_length_fn     = "%s_lengths.tmp"      % refName
@@ -220,16 +213,13 @@ class subread_motif_processor:
 			self.tmp_fs.add(f_strand)
 			
 			if self.opts.motifs_file!=None and self.opts.subtract_control:
-				control_ipds_d = pickle.load( open(self.opts.write_control,"rb" ) )
+				control_ipds_d = pickle.load( open(self.opts.control_pkl_name,"rb" ) )
 
 			for i,(subread_ipds,subread_comps,readname,subread_length,strand) in enumerate(to_dump[refName]):
 				ipd_kmers   = [motif                  for motif in subread_ipds.iterkeys()]
 				ipd_means   = [subread_ipds[motif][1] for motif in subread_ipds.iterkeys()]
 				ipd_counts  = [subread_ipds[motif][0] for motif in subread_ipds.iterkeys()]
 
-
-
-				################
 				ipd_means = []
 				if self.opts.motifs_file!=None and self.opts.subtract_control:
 					for motif in subread_ipds.iterkeys():
@@ -241,9 +231,6 @@ class subread_motif_processor:
 				else:
 					for motif in subread_ipds.iterkeys():
 						ipd_means.append(subread_ipds[motif][1])
-				################
-
-
 
 				comp_kmers  = np.array( [motif   for motif,ipds in subread_comps.items()] )
 				comp_counts = np.array( [ipds    for motif,ipds in subread_comps.items()] )
@@ -277,7 +264,7 @@ class subread_motif_processor:
 		self.refName_has_header = set()
 		to_check = reader[self.idx]
 		for alignment in to_check:
-			ref_contig = slugify(alignment.referenceInfo[3])
+			ref_contig = mbin.slugify(alignment.referenceInfo[3])
 			label      = self.opts.h5_labels[self.cmph5]
 			ref_len    = self.opts.cmph5_contig_lens[self.cmph5][ref_contig]
 			if ref_len >= self.opts.minContigLength and alignment.referenceSpan >= self.opts.readlength_min and alignment.MapQV >= self.opts.minMapQV:
@@ -326,25 +313,3 @@ class subread_motif_processor:
 		reader.close()
 
 		return self.tmp_fns
-	
-def cat_list_of_files( in_fns, out_fn, del_ins=True ):
-	"""
-	Given a list of filenames, cat them together into a single file. Then cleans up pre-catted
-	single files.
-	"""
-	if len(in_fns)==0:
-		raise Exception("There are no files to cat!")
-		
-	cat_CMD   = "cat %s > %s" % (" ".join(in_fns), out_fn)
-	p         = subprocess.Popen(cat_CMD, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-	stdOutErr = p.communicate()
-	sts       = p.returncode
-	if sts != 0:
-		raise Exception("Failed cat command: %s" % cat_CMD)
-	if del_ins:
-		for fn in in_fns:
-			try:
-				os.remove(fn)
-			except OSError:
-				pass
-	return out_fn

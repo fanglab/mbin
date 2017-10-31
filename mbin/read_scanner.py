@@ -192,9 +192,6 @@ def motif_ipds( mode, read_ipds, ref_str, strand, motifs, bi_motifs, opts ):
 			ref_motif_str = "%s-%s" % (motif, ref_index)
 
 			subread_ipds[ref_motif_str] = ipds
-			if opts.printIPDs:
-				for ipd in ipds:
-					print opts.contig_type, ipd, read_id
 	else:
 		# Instatiate a motif IPD dict where the default value is 0
 		for motif in motifs:
