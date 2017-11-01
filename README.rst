@@ -31,7 +31,7 @@ The pipeline consists of four routines:
 
 Documentation
 -------------
-For a comprehensive guide on how to install and run mBin, please see the documentation hosted on `readthedocs <https://mbin.readthedocs.io/en/latest/>`__
+For a comprehensive guide on how to install and run mBin, please see the full `documentation <https://mbin.readthedocs.io/en/latest/>`__.
 
 
 Citations
