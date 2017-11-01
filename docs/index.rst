@@ -8,7 +8,7 @@ The pipeline consists of four routines:
 
 1. *buildcontrols*: Gets unmethylated IPD values for motifs from whole-genome amplified (WGA) sequencing 
 2. *filtermotifs*: Identifies methylated motifs in native metagenomic sequencing
-3. *methylprofiles*: Creates methylation profiles for sequences using speified motifs 
+3. *methylprofiles*: Creates methylation profiles for sequences using specified motifs 
 4. *mapfeatures*: Visualizes landscape of methylation features across all sequences
 
 Features
