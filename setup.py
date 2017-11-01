@@ -45,8 +45,7 @@ setup(
     zip_safe=False,
     keywords='mbin methylation sequencing binning metagenomic',
     # scripts=["bin/mbin"],
-    entry_points={"console_scripts" : ["mbin = mbin.__main__:main", \
-                                       "buildcontrols = mbin.controls:launch", \
+    entry_points={"console_scripts" : ["buildcontrols = mbin.controls:launch", \
                                        "filtermotifs = mbin.motifs:launch", \
                                        "methylprofiles = mbin.profiles:launch", \
                                        "mapfeatures = mbin.visualize:launch", \
