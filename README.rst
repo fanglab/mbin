@@ -27,10 +27,6 @@ The mBin pipeline is designed to discover the unique signals of DNA methylation 
 3. *methylprofiles*: Creates methylation profiles for sequences using speified motifs 
 4. *mapfeatures*: Visualizes landscape of methylation features across all sequences
 
-* Free software: BSD license
-* For basic usage instructions and list of optional parameters, run ``mbin --help``
-
-
 Documentation
 -------------
 For a comprehensive guide on how to install and run mBin, please see the documentation hosted on `readthedocs <https://mbin.readthedocs.io/en/latest/>`__
