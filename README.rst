@@ -22,7 +22,7 @@ mBin: a methylation-based binning framework for metagenomic SMRT sequencing read
 
 The mBin pipeline is designed to discover the unique signals of DNA methylation in metagenomic SMRT sequencing reads and leverage them for organism binning of assembled contigs or unassembled reads. The pipeline consists of four routines:
 
-1. *buildcontrols*: Analyses whole-genome amplified (WGA) sequencing to establish baseline (unmethylated) IPD values for motifs
+1. *buildcontrols*: Gets unmethylated IPD values for motifs from whole-genome amplified (WGA) sequencing 
 2. *filtermotifs*: Identifies methylated motifs in native metagenomic sequencing
 3. *methylprofiles*: Creates methylation profiles for sequences using speified motifs 
 4. *mapfeatures*: Visualizes landscape of methylation features across all sequences
@@ -38,7 +38,7 @@ For a comprehensive guide on how to install and run mBin, please see the documen
 
 Citations
 ---------
-Beaulaurier J, Zhu S, Deikus G, Mogno I, Zhang XS, Davis-Richardson A, Canepa R, Triplett E, Faith J, Sebra R, Schadt EE. Metagenomic binning and association of plasmids with bacterial host genomes using DNA methylation. Nature Biotechnology *in press*.
+Beaulaurier J, Zhu S, Deikus G, Mogno I, Zhang XS, Davis-Richardson A, Canepa R, Triplett E, Faith J, Sebra R, Schadt EE. Metagenomic binning and association of plasmids with bacterial host genomes using DNA methylation. Nature Biotechnology. *in press*.
 
 Credits
 ---------
