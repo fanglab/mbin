@@ -2,14 +2,14 @@ mBin documentation
 ==================
 mBin: a methylation-based binning framework for metagenomic SMRT sequencing reads
 
-The mBin pipeline is designed to discover the unique signals of DNA methylation in metagenomic SMRT sequencing reads and leverage them for organism binning of assembled contigs or unassembled reads.
+The mBin pipeline is designed to discover the unique signals of DNA methylation in metagenomic SMRT sequencing reads and leverage them for organism binning of assembled contigs or unassembled reads. Because *all* cellular DNA is modified by the same methyltransferase, DNA methylation signals can be used for binning not just chromosomal sequences, but also extrachromosomal mobile genetic elements like plasmids.
 
+The pipeline consists of four routines:
 
-* Free software: BSD license
-* Documentation: https://mbin.readthedocs.io. <-- IN PROGRESS
-* Please report any issues through the issue tracker on `GitHub <https://github.com/fanglab/mbin/issues>`__
-
-For basic usage instructions and list of optional parameters, run ``mbin --help``
+1. *buildcontrols*: Gets unmethylated IPD values for motifs from whole-genome amplified (WGA) sequencing 
+2. *filtermotifs*: Identifies methylated motifs in native metagenomic sequencing
+3. *methylprofiles*: Creates methylation profiles for sequences using speified motifs 
+4. *mapfeatures*: Visualizes landscape of methylation features across all sequences
 
 Features
 ^^^^^^^^
