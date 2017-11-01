@@ -8,6 +8,7 @@ import subprocess
 import numpy as np
 from collections import OrderedDict,Counter,defaultdict
 import logging
+import mbin
 import read_scanner
 from operator import itemgetter
 import pickle

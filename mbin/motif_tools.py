@@ -293,10 +293,6 @@ def refine_degen_motifs( keeper_motifs, contig_motifs, case_motif_Ns ):
 	Identify redundant instances of degenerate motifs and replace them with the
 	most parsimonious representation. 
 
-	Follows the conventions established by D. R. Cavener: "Comparison of the 
-	consensus sequence flanking translational start sites in Drosophila and 
-	vertebrates." Nucleic Acids Research 15(4): 1353-1361. (1987). 
-
 	'A': 'A', 
 	'C': 'C', 
 	'G': 'G', 

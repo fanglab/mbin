@@ -1,4 +1,5 @@
 import os,sys
+from collections import defaultdict
 import numpy as np
 import optparse
 import logging
@@ -15,7 +16,7 @@ import motif_tools
 from Bio import SeqIO
 
 def launch():
-	opts, control_h5, motifs_fn = __parseArgs()
+	opts, h5_files, motifs_fn = __parseArgs()
 	__initLog(opts)
 
 	motifs           = np.loadtxt(motifs_fn, dtype="str", ndmin=1)
@@ -27,14 +28,16 @@ def launch():
 		for nf in not_found:
 			logging.warning("       %s" % nf)
 		logging.warning("  These motif(s) will be removed from further analysis.")
-		logging.warning("  %s motifs will be kept." % len(motifs))
+		logging.warning("  These %s motifs will be kept:" % len(motifs))
+		for m in motifs:
+			logging.warning("       %s" % m)
 		logging.warning("  ****************************************************")
 		logging.warning("")
 	else:
-		logging.info("Found entries for all %s motifs in %s" % (len(motifs, opts.control_pkl_name)))
+		logging.info("Found entries for all %s motifs in %s" % (len(motifs), opts.control_pkl_name))
 
 
-	build_profiles(opts, control_h5, motifs, motifs_fn)
+	build_profiles(opts, h5_files, motifs, motifs_fn)
 
 	print >> sys.stderr, "mBin methylation profiling has finished running. See log for details."
 
@@ -195,6 +198,143 @@ def find_motifs_in_control(opts, motifs):
 
 	return np.array(found_motifs), not_found
 
+def combine_subreads_for_read_level( tup ):
+	cmph5_file   = tup[0]
+	contig       = tup[1]
+	tmp          = tup[2]
+	h5_labels    = tup[3]
+	j            = tup[4]
+	N_contigs    = tup[5]
+	logging.info("...contig %s (%s/%s)" % (contig, j, N_contigs))
+	contig_fns = glob.glob( os.path.join(tmp, "%s_*.tmp" % contig) )
+	for fn in contig_fns:
+		if   fn.find("_labels.tmp")>-1:
+			labels_fn     = fn
+		elif fn.find("_lengths.tmp")>-1:
+			lengths_fn    = fn
+		elif fn.find("_readnames.tmp")>-1:
+			readnames_fn  = fn
+		elif fn.find("_ipds.tmp")>-1:
+			ipds_fn       = fn
+		elif fn.find("_ipdsN.tmp")>-1:
+			ipds_N_fn     = fn
+		elif fn.find("_compN.tmp")>-1:
+			comp_N_fn     = fn
+		elif fn.find("_compkmers.tmp")>-1:
+			comp_kmers_fn = fn
+		elif fn.find("_ipdskmers.tmp")>-1:
+			ipds_kmers_fn = fn
+		elif fn.find("_strand.tmp")>-1:
+			strand_fn     = fn
+
+	readname_row_idx = defaultdict(list)
+	for i,line in enumerate(open(readnames_fn, "r").xreadlines()):
+		readname = line.strip()
+		readname_row_idx[readname].append(i)
+	n_subreads = i+1
+
+	for line in open(ipds_kmers_fn).xreadlines():
+		n_motifs = len(line.strip().split("\t"))
+
+	sublengths = np.loadtxt(lengths_fn,    dtype="int")
+	ipds       = np.loadtxt(ipds_fn,       dtype="float")
+	ipds_N     = np.loadtxt(ipds_N_fn,     dtype="int")
+	ipds_kmers = np.loadtxt(ipds_kmers_fn, dtype="string")
+	comp_N     = np.loadtxt(comp_N_fn,     dtype="int")
+	comp_kmers = np.loadtxt(comp_kmers_fn, dtype="string")
+	strands    = np.loadtxt(strand_fn,     dtype="int")
+
+	if n_subreads>1:
+		if n_motifs==1:
+			# Only one motif survived motif-filtering
+			# Case #3
+			ipds       = ipds.reshape(ipds.shape[0],1)
+			ipds_N     = ipds_N.reshape(ipds_N.shape[0],1)
+			ipds_kmers = ipds_kmers.reshape(1)
+		elif n_motifs>1:
+			# The ipd data is loaded properly in matrix form
+			# Case #1
+			pass
+		elif n_motifs==0:
+			pass
+	elif n_subreads==1:
+		sublengths = sublengths.reshape(1)
+		strands    = strands.reshape(1)
+		comp_N     = comp_N.reshape(1,comp_N.shape[0])
+		if n_motifs==1:
+			# Case #4
+			ipds       = ipds.reshape(1,1)
+			ipds_N     = ipds_N.reshape(1,1)
+			ipds_kmers = ipds_kmers.reshape(1)
+		elif n_motifs>1:
+			# Case #2
+			ipds       = ipds.reshape(1,ipds.shape[0])
+			ipds_N     = ipds_N.reshape(1,ipds_N.shape[0])
+		elif n_motifs==0:
+			pass
+		
+	reads_names_fn      = os.path.join(tmp, "%s_read_names.tmp"     % contig)
+	reads_labels_fn     = os.path.join(tmp, "%s_read_labels.tmp"    % contig)
+	reads_lengths_fn    = os.path.join(tmp, "%s_read_lengths.tmp"   % contig)
+	reads_contig_fn     = os.path.join(tmp, "%s_read_contig.tmp"    % contig)
+	reads_ipds_fn       = os.path.join(tmp, "%s_read_ipds.tmp"      % contig)
+	reads_ipds_N_fn     = os.path.join(tmp, "%s_read_ipdsN.tmp"     % contig)
+	reads_ipds_kmers_fn = os.path.join(tmp, "%s_read_ipdskmers.tmp" % contig)
+	reads_comp_N_fn     = os.path.join(tmp, "%s_read_compN.tmp"     % contig)
+	reads_comp_kmers_fn = os.path.join(tmp, "%s_read_compkmers.tmp" % contig)
+	reads_strands_fn    = os.path.join(tmp, "%s_read_strands.tmp"   % contig)
+
+	f_reads      = open(reads_names_fn,   "w")
+	f_labels     = open(reads_labels_fn,  "w")
+	f_lengths    = open(reads_lengths_fn, "w")
+	f_contig     = open(reads_contig_fn,  "w")
+	f_ipds       = open(reads_ipds_fn,    "w")
+	f_ipds_N     = open(reads_ipds_N_fn,  "w")
+	f_comp_N     = open(reads_comp_N_fn,  "w")
+	f_strands    = open(reads_strands_fn, "w")
+	label        = h5_labels[cmph5_file]
+	for readname,row_idx in readname_row_idx.iteritems():
+		f_reads.write(  "%s\n" % readname)
+		f_labels.write( "%s\n" % label)
+		f_contig.write( "%s\n" % contig)
+		comp_N_list  = comp_N[row_idx,:].sum(axis=0)
+		strands_list = strands[row_idx]
+		# ipds_list   = ipds[row_idx,:].mean(axis=0)
+		ipds_N_list  = ipds_N[row_idx,:].sum(axis=0)
+		ipds_list    = []
+		for k in range(n_motifs):
+			read_motifs_N = np.sum(ipds_N[row_idx,k])
+			read_ipds_sum = np.sum(ipds[row_idx,k] * ipds_N[row_idx,k])
+			if read_motifs_N > 0:
+				motif_mean = read_ipds_sum / read_motifs_N
+			else:
+				motif_mean = 0.0
+			ipds_list.append(motif_mean)
+
+		# Normalize composition kmer counts
+		normed_comp_N_list = map(lambda x: math.log( float(x)/sum(comp_N_list) ), comp_N_list)
+		readlength         = sublengths[row_idx].sum()
+		f_lengths.write( "%s\n" % readlength)
+		f_ipds.write(    "%s\n" % "\t".join(map(lambda x: str(round(x,4)), ipds_list)))
+		f_ipds_N.write(  "%s\n" % "\t".join(map(lambda x: str(x),          ipds_N_list)))
+		f_comp_N.write(  "%s\n" % "\t".join(map(lambda x: str(round(x,4)), normed_comp_N_list)))
+		f_strands.write( "%s\n" %  ",".join(map(lambda x: str(x),          strands_list)))
+	
+	shutil.copy(ipds_kmers_fn, os.path.join(tmp, "%s_read_ipdskmers.tmp" % contig))
+	shutil.copy(comp_kmers_fn, os.path.join(tmp, "%s_read_compkmers.tmp" % contig))
+	f_reads.close()
+	f_labels.close()
+	f_lengths.close()
+	f_contig.close()
+	f_ipds.close()
+	f_ipds_N.close()
+	f_comp_N.close()
+	f_strands.close()
+
+	# Remove the subread-level barcodes for each contig
+	for fn in contig_fns:
+		os.remove(fn)
+
 def build_profiles(opts, h5_files, motifs, motifs_fn):
 	"""
 
@@ -225,7 +365,7 @@ def build_profiles(opts, h5_files, motifs, motifs_fn):
 			contig_labels_fns = glob.glob( os.path.join(opts.tmp, "*_labels.tmp") )
 			contigs           = map(lambda x: os.path.basename(x).split("_labels.tmp")[0], contig_labels_fns)
 			args              = [ (h5_file, contig, opts.tmp, opts.h5_labels, i, len(contigs)) for i,contig in enumerate(contigs)]
-			results           = mbin.launch_pool( opts.procs, mbin.combine_subreads_for_read_level, args )
+			results           = mbin.launch_pool( opts.procs, combine_subreads_for_read_level, args )
 
 			logging.info("Combining read-level barcodes from all contigs...")
 			mbinRunner.combine_read_level_barcodes_across_contigs()
@@ -326,7 +466,7 @@ def __parseArgs():
 
 	parser.add_option( "--procs", type="int", help="Number of processors to use [4]" )
 
-	parser.add_option( "--N_reads", type="int", help="Number of qualifying reads to include in analysis [1000000000]" )
+	parser.add_option( "--N_reads", type="int", help="Number of qualifying reads to include (from each bas.h5 if input is FOFN of bas.h5 files) in analysis [1000000000]" )
 	
 	parser.add_option( "--control_pkl_name", type="str", help="Filename to save control IPD data from WGA sequencing [control_ipds.pkl]" )
 	
@@ -407,7 +547,7 @@ def __initLog( opts ):
 	
 	# create formatter and add it to the handlers
 	logFormat = "%(asctime)s [%(levelname)s] %(message)s"
-	formatter = logging.Formatter(logFormat)
+	formatter = logging.Formatter(logFormat, "%Y-%m-%d %H:%M:%S")
 	ch.setFormatter(formatter)
 	fh.setFormatter(formatter)
 	
@@ -438,37 +578,40 @@ def __check_input( opts, args, parser ):
 	if seq_input[-6:]=="cmp.h5":
 		print "Found cmp.h5 of aligned reads:"
 
-		opts.h5_type                = "cmp"
-		opts.cmph5_contig_lens      = {}
-		opts.cmph5_contig_lens[seq_input] = {}
+		h5                         = os.path.abspath(seq_input)
+		opts.h5_type               = "cmp"
+		opts.cmph5_contig_lens     = {}
+		opts.cmph5_contig_lens[h5] = {}
 
-		h5_files.append(seq_input)
-		print "  -- %s" % seq_input
-		print "Getting contig information from %s..." % seq_input
-		reader = CmpH5Reader(seq_input)
+		h5_files.append(h5)
+		print "  -- %s" % h5
+		print "Getting contig information from %s..." % h5
+		reader = CmpH5Reader(h5)
 		for entry in reader.referenceInfoTable:
-			name                                   = entry[3]
-			length                                 = entry[4]
-			slug_name                              = mbin.slugify(name)
-			opts.cmph5_contig_lens[seq_input][slug_name] = length
-			opts.h5_labels[seq_input]                    = "remove"
+			name                                  = entry[3]
+			length                                = entry[4]
+			slug_name                             = mbin.slugify(name)
+			opts.cmph5_contig_lens[h5][slug_name] = length
+			opts.h5_labels[h5]                    = "remove"
 		reader.close()
 
 	elif seq_input[-6:]=="bas.h5":
 		print "Found bas.h5 of unaligned reads:"
-		opts.h5_type        = "bas"
-		h5_files.append(seq_input)
-		opts.h5_labels[seq_input] = "remove"
-		print "  -- %s" % seq_input
+		opts.h5_type = "bas"
+		h5           = os.path.abspath(seq_input)
+		h5_files.append( h5 )
+		opts.h5_labels[h5] = "remove"
+		print "  -- %s" % h5
 
 	elif seq_input[-5:]==".fofn":
-		print "Found FOFN of bas.h5 files:"
+		print "Found FOFN of bas.h5 files of unaligned reads:"
 		opts.h5_type = "bas"
-		fns          = map(lambda x: x.strip("\n"), np.atleast_1d(open(seq_input, "r").read()))
-		h5_files     = fns
-		for fn in fns:
-			print "  -- %s" % fn
-			opts.h5_labels[fn] = "remove"
+		fofn_content = open(seq_input, "r").read().strip()
+		h5_files     = fofn_content.split("\n")
+		for h5 in h5_files:
+			h5 = os.path.abspath(h5)
+			print "  -- %s" % h5
+			opts.h5_labels[h5] = "remove"
 
 	if opts.h5_type=="bas" and opts.cross_cov_bins!=None:
 		parser.error("Use of the --cross_cov_bins option is not compatible with bas.h5 inputs!")

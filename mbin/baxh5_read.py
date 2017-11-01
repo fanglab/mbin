@@ -143,7 +143,6 @@ class subread_motif_processor:
 					for motif in subread_ipds.iterkeys():
 						if subread_ipds[motif][1] != 0.0:
 							w_control_sub = subread_ipds[motif][1] - control_ipds_d[motif]
-							print readname, motif, subread_ipds[motif][1], w_control_sub
 							ipd_means.append(w_control_sub)
 						else: # Don't subtract control if no ipd values are available (i.e. IPD score == 0.0)
 							ipd_means.append(subread_ipds[motif][1])

@@ -205,7 +205,7 @@ def __initLog( opts ):
 	
 	# create formatter and add it to the handlers
 	logFormat = "%(asctime)s [%(levelname)s] %(message)s"
-	formatter = logging.Formatter(logFormat)
+	formatter = logging.Formatter(logFormat, "%Y-%m-%d %H:%M:%S")
 	ch.setFormatter(formatter)
 	fh.setFormatter(formatter)
 	
@@ -416,17 +416,17 @@ class ControlRunner:
 		ipds_fns.sort()
 		ipds_N_fns.sort()
 		comp_N_fns.sort()
+
+		mbin.cat_list_of_files(labels_fns,    "control_labels.tmp")
+		mbin.cat_list_of_files(strands_fns,   "control_strands.tmp")
+		mbin.cat_list_of_files(lengths_fns,   "control_lengths.tmp")
+		mbin.cat_list_of_files(readnames_fns, "control_names.tmp")
+		mbin.cat_list_of_files(ipds_fns,      "control_ipds.tmp")
+		mbin.cat_list_of_files(ipds_N_fns,    "control_ipdsN.tmp")
+		mbin.cat_list_of_files(comp_N_fns,    "control_compN.tmp")
 		
-		mbin.cat_list_of_files(labels_fns,    os.path.join(self.opts.tmp, "control_labels.tmp"))
-		mbin.cat_list_of_files(strands_fns,   os.path.join(self.opts.tmp, "control_strands.tmp"))
-		mbin.cat_list_of_files(lengths_fns,   os.path.join(self.opts.tmp, "control_lengths.tmp"))
-		mbin.cat_list_of_files(readnames_fns, os.path.join(self.opts.tmp, "control_names.tmp"))
-		mbin.cat_list_of_files(ipds_fns,      os.path.join(self.opts.tmp, "control_ipds.tmp"))
-		mbin.cat_list_of_files(ipds_N_fns,    os.path.join(self.opts.tmp, "control_ipdsN.tmp"))
-		mbin.cat_list_of_files(comp_N_fns,    os.path.join(self.opts.tmp, "control_compN.tmp"))
-		
-		shutil.copy(comp_kmers_fns[0],              os.path.join(self.opts.tmp, "control_compkmers.tmp"))
-		shutil.copy(ipds_kmers_fns[0],              os.path.join(self.opts.tmp, "control_ipdskmers.tmp"))
+		shutil.copy(comp_kmers_fns[0], "control_compkmers.tmp")
+		shutil.copy(ipds_kmers_fns[0], "control_ipdskmers.tmp")
 		x = [os.remove(fn) for fn in comp_kmers_fns]
 		x = [os.remove(fn) for fn in ipds_kmers_fns]
 
@@ -434,9 +434,9 @@ class ControlRunner:
 		"""
 
 		"""
-		control_ipds_fn   = glob.glob(os.path.join(self.opts.tmp, "control_ipds.tmp" ))
-		control_ipds_N_fn = glob.glob(os.path.join(self.opts.tmp, "control_ipdsN.tmp"))
-		control_kmers_fn  = glob.glob(os.path.join(self.opts.tmp, "control_ipdskmers.tmp"))
+		control_ipds_fn   = glob.glob( "control_ipds.tmp" )
+		control_ipds_N_fn = glob.glob( "control_ipdsN.tmp")
+		control_kmers_fn  = glob.glob( "control_ipdskmers.tmp")
 
 		if (len(control_ipds_fn)>1 or len(control_ipds_N_fn)>1 or len(control_kmers_fn)>1):
 			raise Exception("*** Double check the control files. There should not be multiples for a file type.")
@@ -446,7 +446,7 @@ class ControlRunner:
 		if not_found > 0:
 			logging.info("")
 			logging.warning("WARNING: could not find sufficient instances (>=%s) for %s motifs (out of %s total) in control data!" % (self.opts.min_motif_count, not_found, (len(motifs)+len(bi_motifs))))
-			logging.warning("   * If this is alarming, try reducing --min_motif_count, although you just might not have those motifs in your reference sequence.")
+			logging.warning("   * If this is alarming, try reducing --min_motif_count or increasing --N_reads, although you just might not have those motifs in your reference sequence.")
 		
 		logging.info("")
 		logging.info("Writing control data to a pickled file: %s" % self.opts.control_pkl_name)

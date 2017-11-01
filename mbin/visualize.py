@@ -5,7 +5,6 @@ import subprocess
 import numpy as np
 import shutil
 import warnings
-import plotting
 import matplotlib; matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -86,10 +85,21 @@ class Features:
 		"""
 		Make scatter plot of 2-dimensional map.
 		"""
+		def scale_sizes(lengths):
+			# Scale marker sizes for plotting
+			max_size     = 2500
+			min_size     = 5
+			norm_lengths = (lengths-min(lengths)) / float((max(lengths)-min(lengths)))
+			scaled_sizes = max_size * norm_lengths + min_size
+			
+			return scaled_sizes
+
 		if self.opts.labels!=None:
 			# Read labels into dictionary
-			seq_labels         = np.loadtxt(self.opts.labels, dtype="str")
-			lab_d              = dict(seq_labels[:,0], seq_labels[:,1])
+			seq_labels_m       = np.loadtxt(self.opts.labels, dtype="str", delimiter="\t")
+			seq_names          = seq_labels_m[:,0]
+			seq_labs           = seq_labels_m[:,1]
+			lab_d              = dict( zip(seq_names, seq_labs) )
 
 			fig                = plt.figure(figsize=[15,12])
 			ax                 = fig.add_axes([0.1, 0.1, 0.6, 0.6])
@@ -100,18 +110,16 @@ class Features:
 			shapes             = ["o", "v", "^", "s", "D"]
 			
 			if self.opts.size_markers:
-				# Scale sizes for plotting
-				self.lens[self.lens<100000] = 100000
-				scaled_sizes                = self.lens**1.5 / max(self.lens**1.5) * 2000
+				scaled_sizes = scale_sizes(self.lens)
 
 			res                = []
 			for k,target_lab in enumerate(label_list):
-				idxs             = [j for j,label in enumerate(seq_labels) if label==target_lab]
-				X                = map2d[idxs,0]
-				Y                = map2d[idxs,1]
-				color            = colors[k]
+				idxs  = [j for j,label in enumerate(seq_labs) if label==target_lab]
+				X     = map2d[idxs,0]
+				Y     = map2d[idxs,1]
+				color = colors[k]
 				if self.opts.size_markers:
-					scaled_sizes_idx = np.array(scaled_sizes)[idxs]
+					scaled_sizes_idx = scaled_sizes[idxs]
 					for i,x in enumerate(X):
 						res.append( (x, Y[i], target_lab, color, scaled_sizes_idx[i], shapes[k%len(shapes)]) )
 				else:
@@ -138,9 +146,11 @@ class Features:
 			leg_tup.sort(key=lambda x: x[0])
 
 			# Put "Unlabeled" at end of legend 
-			unlabeled = [tup for tup in leg_tup if tup[0]=="Unlabeled"][0]
-			leg_tup.remove(unlabeled)
-			leg_tup.append(unlabeled)
+			unlabeled = [tup for tup in leg_tup if tup[0]=="Unlabeled"]
+			if len(unlabeled)>0:
+				unlabeled = unlabeled[0]
+				leg_tup.remove(unlabeled)
+				leg_tup.append(unlabeled)
 
 			legend_labs, legend_plots = zip(*leg_tup)
 			leg = ax.legend(legend_plots, legend_labs, loc='center left', prop={'size':24}, ncol=1, bbox_to_anchor=(1, 0.5), frameon=False, scatterpoints=1)
@@ -156,16 +166,12 @@ class Features:
 			ax.set_ylim([ymin-(0.05*yspan), ymax+(0.05*yspan)])
 			plt.savefig(plot_fn)
 		else:
-			fig       = plt.figure(figsize=[12,12])
-			ax        = fig.add_subplot(111)
+			fig = plt.figure(figsize=[12,12])
+			ax  = fig.add_subplot(111)
+			X   = map2d[:,0]
+			Y   = map2d[:,1]
 			if self.opts.size_markers:
-				# Scale sizes for plotting
-				self.lens[self.lens<100000] = 100000
-				scaled_sizes                = self.lens**1.5 / max(self.lens**1.5) * 2000
-			X     = map2d[:,0]
-			Y     = map2d[:,1]
-			if self.opts.size_markers:
-				scaled_sizes = np.array(scaled_sizes)
+				scaled_sizes = scale_sizes(self.lens)
 				ax.scatter(X, Y, marker="o", lw=3, alpha=0.5, s=scaled_sizes)
 			else:
 				ax.scatter(X, Y, marker="o", s=15 ,edgecolors="None")
@@ -381,7 +387,7 @@ def __initLog( opts ):
 	
 	# create formatter and add it to the handlers
 	logFormat = "%(asctime)s [%(levelname)s] %(message)s"
-	formatter = logging.Formatter(logFormat)
+	formatter = logging.Formatter(logFormat, "%Y-%m-%d %H:%M:%S")
 	ch.setFormatter(formatter)
 	fh.setFormatter(formatter)
 	

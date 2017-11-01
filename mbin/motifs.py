@@ -199,6 +199,106 @@ def get_control_motifs(opts):
 
 	return opts
 
+def transpose_file( fn ):
+	def run_OS( CMD ):
+		p         = subprocess.Popen(CMD, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		stdOutErr = p.communicate()
+		sts       = p.returncode
+		if sts != 0:
+			logging.warning("Failed command: %s" % CMD)
+		return sts, stdOutErr
+
+	transpose_dir  = os.path.dirname(os.path.realpath(read_scanner.__file__))
+	trans_script   = os.path.join(transpose_dir, "transpose.awk")
+	trans_CMD      = "awk -f %s %s > %s.trans" % (trans_script, fn, fn)
+	logging.info(trans_CMD)
+	sts, stdOutErr = run_OS(trans_CMD)
+
+def transpose_contig_matrix( args ):
+	contig  = args[0]
+	opts    = args[1]
+	logging.info("  Transposing %s" % contig)
+	contig_ipds_fn       = os.path.join( opts.tmp, "%s_ipds.tmp"       % contig)
+	contig_ipds_kmers_fn = os.path.join( opts.tmp, "%s_ipdskmers.tmp"  % contig)
+	contig_ipds_N_fn     = os.path.join( opts.tmp, "%s_ipdsN.tmp"      % contig)
+	contig_ipds          = np.loadtxt(contig_ipds_fn,       dtype="float")
+	contig_ipds_kmers    = np.loadtxt(contig_ipds_kmers_fn, dtype="str")
+	contig_ipds_N        = np.loadtxt(contig_ipds_N_fn,     dtype="int")
+	if len(contig_ipds.shape)==1:
+		contig_ipds   = contig_ipds.reshape(1,contig_ipds.shape[0])
+		contig_ipds_N = contig_ipds_N.reshape(1,contig_ipds_N.shape[0])
+
+	contig_ipds    = contig_ipds.T
+	contig_ipds_N  = contig_ipds_N.T
+	np.savetxt(contig_ipds_fn+".trans",   contig_ipds,   fmt="%.4f", delimiter="\t")
+	np.savetxt(contig_ipds_N_fn+".trans", contig_ipds_N, fmt="%s",   delimiter="\t")
+	return None
+
+def build_bin_dict( contig, bin_id, contig_SCp_dict, bin_SCp_dict ):
+	"""
+	For each contig, incorporate its methylation score values into 
+	the running bin methylation score values.
+	"""
+	logging.info("Adding methylation scores from contig %s to bin %s..." % (contig, bin_id))
+	for motif in contig_SCp_dict["SCp"].keys():
+		"""
+		If the bin doesn't yet have values for a motif, initialize
+		them with zeroes.
+		"""
+		if not bin_SCp_dict["SCp"].get(motif):
+			bin_SCp_dict["SCp"][motif]   = 0.0
+			bin_SCp_dict["SCp_N"][motif] = 0
+
+		# Compute contig and bin score sums for a motif
+		contig_sum    = contig_SCp_dict["SCp"][motif] * contig_SCp_dict["SCp_N"][motif]
+		bin_sum       = bin_SCp_dict["SCp"][motif]    * bin_SCp_dict["SCp_N"][motif]
+		
+		# Get new sum for the bin and divide by new count to get new score
+		new_bin_sum   = bin_sum + contig_sum
+		new_bin_N     = bin_SCp_dict["SCp_N"][motif] + contig_SCp_dict["SCp_N"][motif]
+		
+		if new_bin_N>0:
+			new_bin_score = new_bin_sum / new_bin_N
+		else:
+			new_bin_score = 0
+
+		bin_SCp_dict["SCp"][motif]   = new_bin_score
+		bin_SCp_dict["SCp_N"][motif] = new_bin_N
+
+	return bin_SCp_dict
+
+def stream_case_control_files( tup ):
+	opts                 = tup[0]
+	contig               = tup[1]
+	j                    = tup[2]
+	contigs_N            = tup[3]
+
+	logging.info("   ...streaming contig %s (%s/%s)..." % (contig,(j+1),contigs_N) )
+
+	control_means        = pickle.load(open(opts.control_pkl_name, "rb"))
+	contig_SCp           = {}
+	contig_SCp_N         = {}
+	keeper_motifs        = set()
+	contig_ipds_fn       = os.path.join( opts.tmp, "%s_ipds.tmp"      % contig)
+	contig_ipds_kmers_fn = os.path.join( opts.tmp, "%s_ipdskmers.tmp" % contig)
+	contig_ipds_N_fn     = os.path.join( opts.tmp, "%s_ipdsN.tmp"     % contig)
+	kmers = np.loadtxt(contig_ipds_kmers_fn, dtype="str")
+	files = [contig_ipds_fn+".trans", contig_ipds_N_fn+".trans"]
+	for i,(l1,l2) in enumerate(izip( open(files[0]), open(files[1]))):
+		motif          = kmers[i]
+		case_contig_Ns = map(lambda x: int(x), l2.split())
+		if control_means.get(motif):
+			case_contig_means    = map(lambda x: float(x), l1.split())
+			if np.sum(case_contig_Ns)>0:
+				case_mean = np.dot(case_contig_means, case_contig_Ns) / np.sum(case_contig_Ns)
+			else:
+				case_mean = 0
+			score                = case_mean - control_means[motif]
+			contig_SCp[motif]    = score
+			contig_SCp_N[motif]  = np.sum(case_contig_Ns)
+	
+	return contig_SCp, contig_SCp_N, contig
+
 def chunks( l, n ):
 	"""
 	Yield successive n-sized chunks from l.
@@ -427,7 +527,7 @@ def __initLog( opts ):
 	
 	# create formatter and add it to the handlers
 	logFormat = "%(asctime)s [%(levelname)s] %(message)s"
-	formatter = logging.Formatter(logFormat)
+	formatter = logging.Formatter(logFormat, "%Y-%m-%d %H:%M:%S")
 	ch.setFormatter(formatter)
 	fh.setFormatter(formatter)
 	
@@ -588,13 +688,13 @@ class FilterRunner:
 
 			logging.info("Transposing %s case contigs..." % len(contigs_for_transpose))
 			args    = [(contig,self.opts) for contig in contigs_for_transpose]
-			results = mbin.launch_pool( self.opts.procs, mbin.transpose_contig_matrix, args )
+			results = mbin.launch_pool( self.opts.procs, transpose_contig_matrix, args )
 
 			streamed_contig_dicts  = {}
 			if len(contigs_for_transpose)>0:
 				logging.info("Streaming through %s contigs..." % len(contigs_for_transpose))
 				args    = [(self.opts, contig, i, len(contigs_for_transpose)) for i,contig in enumerate(contigs_for_transpose)]
-				results = mbin.launch_pool( self.opts.procs, mbin.stream_case_control_files, args)
+				results = mbin.launch_pool( self.opts.procs, stream_case_control_files, args)
 				
 				streamed_contig_SCp    = map(lambda x: x[0], results)
 				streamed_contig_SCp_N  = map(lambda x: x[1], results)
@@ -645,7 +745,7 @@ class FilterRunner:
 					# Make sure contig is binned
 					if bin_map.get(contig):
 						bin_id = bin_map[contig]
-						bin_contig_dicts[bin_id] = mbin.build_bin_dict( contig, bin_id, contig_d, bin_contig_dicts[bin_id] )
+						bin_contig_dicts[bin_id] = build_bin_dict( contig, bin_id, contig_d, bin_contig_dicts[bin_id] )
 					else:
 						logging.info("Contig %s not found in cross-coverage binning results." % contig)
 				
@@ -721,7 +821,7 @@ class FilterRunner:
 		elif self.opts.h5_type=="bas":
 			logging.info("Transposing reads...")
 			files   = [os.path.join(self.opts.tmp, "read_ipds.tmp"), os.path.join(self.opts.tmp, "read_ipdsN.tmp")]
-			results = mbin.launch_pool( len(files), mbin.transpose_file, files )
+			results = mbin.launch_pool( len(files), transpose_file, files )
 			logging.info("Done.")
 			logging.info("Streaming through reads for motif filtering...")
 			keeper_motifs = self.bas_stream_files()

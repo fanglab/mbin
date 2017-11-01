@@ -73,6 +73,8 @@ Which should produce something similar to the following:
 	GTCTA-4 0.151090909091
 	.....
 
+It is important that the WGA sequencing data used for this step is of at least moderate depth and sequence complexity in order to provide sufficient control data points across the full spectrum of possible motifs. In subsequent analyses, any motifs lacking control IPD values will be discarded from the analysis, so try to include all motifs in the control data if possible.
+
 Detect methylated motifs with *filtermotifs*
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. code-block:: console
@@ -178,7 +180,8 @@ Build methylation profiles with *methylprofiles*
 	  --minAcc=MINACC                         Min subread accuracy of read [0.8]
 	  --minMapQV=MINMAPQV                     Min mapping QV of aligned read [240]
 	  --procs=PROCS                           Number of processors to use [4]
-	  --N_reads=N_READS                       Number of qualifying reads to include in analysis [1000000000]
+	  --N_reads=N_READS                       Number of qualifying reads to include (from each bas.h5 if input is FOFN 
+	                                          of bas.h5 files) in analysis [1000000000]
 	  --control_pkl_name=CONTROL_PKL_NAME     Filename to save control IPD data from WGA sequencing [control_ipds.pkl]
 	  --subtract_control=SUBTRACT_CONTROL     Subtract control IPDs in final calculations [True]
 	  --cross_cov_bins=CROSS_COV_BINS         Path to file containing binning results from CONCOCT. Will use to improve 
