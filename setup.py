@@ -40,7 +40,7 @@ setup(
     url='https://github.com/fanglab/mbin',
     packages=find_packages(include=['mbin']),
     include_package_data=True,
-    data_files=[('', ['bin/bh_tsne'])]
+    # data_files=[('', ['bin/bh_tsne'])],
     install_requires=requirements,
     license="BSD license",
     zip_safe=False,

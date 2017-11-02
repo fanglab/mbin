@@ -53,9 +53,9 @@ import io
 
 ### Constants
 IS_WINDOWS = True if system() == 'Windows' else False
-BH_TSNE_BIN_PATH = path_join(dirname(__file__), 'windows', 'bh_tsne.exe') if IS_WINDOWS else path_join(dirname(__file__), 'bin', 'bh_tsne')
+BH_TSNE_BIN_PATH = path_join(dirname(__file__), 'windows', 'bh_tsne.exe') if IS_WINDOWS else path_join(dirname(__file__), 'bh_tsne')
 assert isfile(BH_TSNE_BIN_PATH), ('Unable to find the bh_tsne binary in the '
-    'same directory as this script, have you forgotten to compile it?: {}'
+    'same directory as this script, have you forgotten to compile it and drop here?: {}'
     ).format(BH_TSNE_BIN_PATH)
 # Default hyper-parameter values from van der Maaten (2014)
 # https://lvdmaaten.github.io/publications/papers/JMLR_2014.pdf (Experimental Setup, page 13)
