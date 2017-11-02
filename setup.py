@@ -32,7 +32,7 @@ test_requirements = [
 
 setup(
     name='mbin',
-    version='1.0.0',
+    version='1.0.1',
     description="mBin: a methylation-based binning framework for metagenomic SMRT sequencing reads",
     long_description=readme + '\n\n' + history,
     author="John Beaulaurier",
@@ -40,7 +40,7 @@ setup(
     url='https://github.com/fanglab/mbin',
     packages=find_packages(include=['mbin']),
     include_package_data=True,
-    package_data={'':["bh_tsne"]},
+    data_files=[('', ['bin/bh_tsne'])]
     install_requires=requirements,
     license="BSD license",
     zip_safe=False,

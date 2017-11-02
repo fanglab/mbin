@@ -3,7 +3,7 @@ include CONTRIBUTING.rst
 include HISTORY.rst
 include LICENSE
 include README.rst
-include mbin/bh_tsne
+include bin/bh_tsne
 
 recursive-include tests *
 recursive-exclude * __pycache__
