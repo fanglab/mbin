@@ -91,23 +91,17 @@ Next we compile the source code to get the executable ``bh_tsne``:
 
 	$ g++ sptree.cpp tsne.cpp tsne_main.cpp -o bh_tsne -O2
 
-Once the executable is compiled, we'll need to copy both ``bh_tsne`` and the ``bhtsne.py`` Python wrapper script to the mbin/mbin directory (which contains bhtsne.py, profiles.py, visualize.py, motifs.py, etc.):
+Once the executable ``bh_tsne`` is compiled, add this directory to your ``$PATH`` environmental variable:
 
 .. code-block:: console
 
-	$ cp bh_tsne <PATH TO MBIN INSTALL>/mbin
-	$ cp bhtsne.py <PATH TO MBIN INSTALL>/mbin
+	$ export PATH=$PATH:`pwd`
 
-If you are not sure of the <PATH TO MBIN INSTALL>, the following command will issue an instructive message:
+If ``bh_tsne`` is accessible in the path, the following should list usage instructions for *mapfeatures*:
 
 .. code-block:: console
 
 	$ mapfeatures --help
-
-
-
-
-
 
 
 Testing installation
