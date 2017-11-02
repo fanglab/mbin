@@ -32,7 +32,7 @@ test_requirements = [
 
 setup(
     name='mbin',
-    version='1.0.1',
+    version='1.0.2',
     description="mBin: a methylation-based binning framework for metagenomic SMRT sequencing reads",
     long_description=readme + '\n\n' + history,
     author="John Beaulaurier",
