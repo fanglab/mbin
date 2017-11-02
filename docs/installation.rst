@@ -66,30 +66,17 @@ Once activated, you are now operating inside the ``venv`` and should see the fol
 Installing mBin
 ---------------
 
-With the virtual environment activated, install numpy using ``pip``:
-
-.. code-block:: console
-	
-	$ pip install numpy
-
-Next, clone the mBin repository to your desired location:
+With the virtual environment activated, install ``mbin`` using ``pip``:
 
 .. code-block:: console
 
-	$ git clone https://github.com/fanglab/mbin.git
-
-Navigate to the cloned ``mbin`` directory and install using the ``setup.py`` file:
-
-.. code-block:: console
-
-	$ cd mbin
-	$ python setup.py install
+	$ pip install mbin
 
 
 Installing t-SNE
 ----------------
 
-Finally, we must install the Barnes-Hut implementation of the t-SNE algorithm in order to create 2-D maps of methylation (and other) features for binning. Full details on the BH-tSNE algoritm and wrapper script can be found here_. First, we pull the repository from GitHub and enter the directory:
+In order to create 2-D maps of methylation (and other) features for binning using *mapfeatures*, we must install the Barnes-Hut implementation of the t-SNE algorithm. Full details on the BH-tSNE algoritm and wrapper script can be found here_. First, we pull the repository from GitHub and enter the directory:
 
 .. _here: https://github.com/lvdmaaten/bhtsne
 

@@ -40,6 +40,7 @@ setup(
     url='https://github.com/fanglab/mbin',
     packages=find_packages(include=['mbin']),
     include_package_data=True,
+    package_data={'':["bh_tsne"]},
     install_requires=requirements,
     license="BSD license",
     zip_safe=False,
@@ -51,7 +52,7 @@ setup(
                                        "mapfeatures = mbin.visualize:launch", \
                                        ]},
     classifiers=[
-        'Development Status :: 5 - Stable',
+        'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: BSD License',
         'Natural Language :: English',
