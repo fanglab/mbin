@@ -13,10 +13,6 @@ mBin overview
         :target: https://mbin.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
 
-.. image:: https://pyup.io/repos/github/fanglab/mbin/shield.svg
-     :target: https://pyup.io/repos/github/fanglab/mbin/
-     :alt: Updates
-
 
 mBin: a methylation-based binning framework for metagenomic SMRT sequencing reads
 
