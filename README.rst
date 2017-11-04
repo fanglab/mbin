@@ -16,7 +16,7 @@ mBin overview
 
 mBin: a methylation-based binning framework for metagenomic SMRT sequencing reads
 
-The mBin pipeline is designed to discover the unique signals of DNA methylation in metagenomic SMRT sequencing reads and leverage them for organism binning of assembled contigs or unassembled reads. Because *all* cellular DNA is modified by the same methyltransferase, DNA methylation signals can be used for binning not just chromosomal sequences, but also extrachromosomal mobile genetic elements like plasmids.
+The mBin pipeline is designed to discover the unique signals of DNA methylation in metagenomic SMRT sequencing reads and leverage them for organism binning of assembled contigs or unassembled reads. Because *all* cellular DNA is modified by the same set of methyltransferases encoded in the genome, DNA methylation signals can be used for binning not just chromosomal sequences, but also extrachromosomal mobile genetic elements like plasmids.
 
 The pipeline consists of four routines:
 
@@ -32,7 +32,7 @@ For a comprehensive guide on how to install and run mBin, please see the full `d
 
 Citations
 ---------
-Beaulaurier J, Zhu S, Deikus G, Mogno I, Zhang XS, Davis-Richardson A, Canepa R, Triplett E, Faith J, Sebra R, Schadt EE. Metagenomic binning and association of plasmids with bacterial host genomes using DNA methylation. *In press at Nature Biotechnology*.
+Beaulaurier J, Zhu S, Deikus G, Mogno I, Zhang XS, Davis-Richardson A, Canepa R, Triplett E, Faith J, Sebra R, Schadt EE, Fang G. Metagenomic binning and association of plasmids with bacterial host genomes using DNA methylation. *In press at Nature Biotechnology*.
 
 Credits
 ---------
