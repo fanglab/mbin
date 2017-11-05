@@ -104,7 +104,6 @@ def cat_subreads_files_from_subprocs( subproc_tmp_files, movie_i, opts ):
 class mbinRunner:
 	def __init__( self, opts ):
 		"""
-		The options from __main__.py are passed to mbinRunner
 		"""
 		self.opts = opts
 		self.fns  = {}
@@ -293,7 +292,6 @@ class mbinRunner:
 		ipds_N_fns.sort()
 		comp_N_fns.sort()
 		
-
 		cat_list_of_files(labels_fns,    os.path.join(self.opts.tmp, self.fns["read_labels"]), del_ins=False)
 		cat_list_of_files(lengths_fns,   os.path.join(self.opts.tmp, self.fns["read_lengths"]), del_ins=False)
 		cat_list_of_files(refs_fns,      os.path.join(self.opts.tmp, self.fns["read_refs"]), del_ins=False)

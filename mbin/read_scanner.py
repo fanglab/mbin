@@ -49,11 +49,10 @@ def scan_motifs( mode, ipds, ref_str, strand, motifs, bi_motifs, opts ):
 	"""
 	For each motif, find all occurrences in read.
 	"""
-	read_str     = None
+	read_str = None
 	if mode == "bas":
 		strand = 0
 	subread_ipds = motif_ipds( mode,      \
-							   # read_str,  \
 							   ipds,      \
 							   ref_str,   \
 							   strand,    \
@@ -74,7 +73,6 @@ def scan_motifs( mode, ipds, ref_str, strand, motifs, bi_motifs, opts ):
 		subread_barcode[motif] = ( len(ipds), score )
 
 	subread_kmers = kmer_freq( mode,     \
-							   # read_str, \
 							   ref_str, \
 							   strand,  \
 							   opts )
