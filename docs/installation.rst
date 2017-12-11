@@ -104,11 +104,6 @@ If ``bh_tsne`` is accessible in the path, the following should list usage instru
 	$ mapfeatures --help
 
 
-Testing installation
-^^^^^^^^^^^^^^^^^^^^
-IN PROGRESS
-
-
 
 
 
