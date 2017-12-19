@@ -42,7 +42,7 @@ setup(
     include_package_data=True,
     # data_files=[('', ['bin/bh_tsne'])],
     install_requires=requirements,
-    license="BSD license",
+    license="CC BY-NC-SA 4.0 license",
     zip_safe=False,
     keywords='mbin methylation sequencing binning metagenomic',
     # scripts=["bin/mbin"],
@@ -54,7 +54,7 @@ setup(
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
-        'License :: OSI Approved :: BSD License',
+        'License :: Free for non-commercial use',
         'Natural Language :: English',
         "Programming Language :: Python :: 2",
         'Programming Language :: Python :: 2.7',
