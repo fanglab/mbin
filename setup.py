@@ -12,8 +12,8 @@ with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
 requirements = [
-    'pysam == 0.10.0',
-    'numpy >= 1.7.1',
+    'pysam >= 0.10.0',
+    'numpy >= 1.7.1, < 1.14',
     'h5py >= 2.0.1',
     'pbcore >= 0.9.4',
     'scipy >= 0.12.0',
