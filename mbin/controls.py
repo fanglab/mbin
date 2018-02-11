@@ -2,6 +2,7 @@ import os,sys
 import optparse
 import logging
 from pbcore.io.align.CmpH5IO import CmpH5Reader
+from pbcore.io import openIndexedAlignmentFile
 from pbcore.io.BasH5IO import BasH5Reader
 import glob
 import numpy as np
@@ -88,6 +89,8 @@ def __parseArgs():
 
 	parser.add_option( "--logFile", type="str", help="Write logging to file [log.controls]" )
 
+	parser.add_option( "--ref", type="str", help="Path to reference fasta file used in the alignment. Must be accompanied by an index file (use samtools faidx). Required if input BAM file of aligned reads (not needed for cmp.h5). [None]" )
+	
 	parser.add_option( "--subreadlength_min", type="int", help="Minimum subread length to include for analysis [100]" )
 
 	parser.add_option( "--readlength_min", type="int", help="Minimum read length to include for analysis [100]" )
@@ -216,8 +219,15 @@ def __initLog( opts ):
 def __check_input( opts, args, parser ):
 	control_h5 = os.path.abspath(args[0])
 
-	if control_h5[-6:]!="cmp.h5":
-		parser.error("Please input a *.cmp.h5 file of aligned reads")
+	if control_h5[-6:]=="cmp.h5":
+		opts.aln_ftype = "cmp"
+	elif control_h5[-4:]==".bam":
+		opts.aln_ftype = "bam"
+	else:
+		parser.error("Could not recognize valid input (BAM or cmp.h5 file of aligned reads): %s" % control_h5)
+
+	if opts.aln_ftype=="bam" and opts.ref==None:
+		parser.error("With BAM input, must specify reference fasta using --ref. Fasta must be indexed (use samtools faidx).")
 
 	# if opts.contigs==None:
 	# 	parser.error("Please specify the fasta file used for the alignments in %s!" % control_h5)
@@ -305,17 +315,18 @@ class ControlRunner:
 		Get some necessary information about the WGA cmp.h5 
 		being used to generate the control IPD data.
 		"""
-		self.opts.h5_labels                          = {}
-		self.opts.cmph5_contig_lens                  = {}
-		self.opts.h5_labels[self.control_h5]         = "control"
-		self.opts.cmph5_contig_lens[self.control_h5] = {}
+		self.opts.aln_fn_labels                       = {}
+		self.opts.aln_fn_contig_lens                  = {}
+		self.opts.aln_fn_labels[self.control_h5]      = "control"
+		self.opts.aln_fn_contig_lens[self.control_h5] = {}
 		
-		reader = CmpH5Reader(self.control_h5)
+		# reader = CmpH5Reader(self.control_h5)
+		reader = openIndexedAlignmentFile(self.control_h5)
 		for entry in reader.referenceInfoTable:
 			name      = entry[3]
 			length    = entry[4]
 			slug_name = mbin.slugify(name)
-			self.opts.cmph5_contig_lens[self.control_h5][slug_name] = length
+			self.opts.aln_fn_contig_lens[self.control_h5][slug_name] = length
 		reader.close()
 
 		return self.opts

@@ -4,6 +4,7 @@ from itertools import groupby
 import math
 import numpy as np
 from pbcore.io.align.CmpH5IO import CmpH5Reader
+from pbcore.io import openIndexedAlignmentFile
 from pbcore.io.BasH5IO import BasH5Reader
 import shutil
 import re
@@ -390,14 +391,14 @@ class mbinRunner:
 					quiver_ref = slugify(ref)
 					f_ref_comp.write(  "%s\n" % contigs_comp_strings[quiver_ref])
 				
-				f_ref_labels.write("%s\n" % self.opts.h5_labels[cmph5_file])
+				f_ref_labels.write("%s\n" % self.opts.aln_fn_labels[cmph5_file])
 				if self.opts.sam!=None:
 					if ref=="unknown":
 						coverage = 0
 					else:
 						coverage = float(ref_bases[ref]) / self.contig_fasta_lens[ref]
 				else:
-					coverage = float(ref_bases[ref]) / self.opts.cmph5_contig_lens[cmph5_file][ref]
+					coverage = float(ref_bases[ref]) / self.opts.aln_fn_contig_lens[cmph5_file][ref]
 				f_ref_covs.write(  "%.2f\n" % coverage)
 		else:
 			ref_names         = ref_SCp.keys()
@@ -417,16 +418,16 @@ class mbinRunner:
 					quiver_ref = slugify(ref)
 					f_ref_comp.write(  "%s\n" % contigs_comp_strings[quiver_ref])
 				
-				f_ref_labels.write("%s\n" % self.opts.h5_labels[cmph5_file])
+				f_ref_labels.write("%s\n" % self.opts.aln_fn_labels[cmph5_file])
 				if self.opts.sam!=None:
 					if ref=="unknown":
 						coverage = 0
 					else:
 						coverage = float(ref_bases[ref]) / self.contig_fasta_lens[ref]
 				else:
-					coverage = float(ref_bases[ref]) / self.opts.cmph5_contig_lens[cmph5_file][ref]
+					coverage = float(ref_bases[ref]) / self.opts.aln_fn_contig_lens[cmph5_file][ref]
 				f_ref_covs.write(  "%.2f\n" % coverage)
-				f_ref_lens.write(  "%s\n" % self.opts.cmph5_contig_lens[cmph5_file][ref])
+				f_ref_lens.write(  "%s\n" % self.opts.aln_fn_contig_lens[cmph5_file][ref])
 		f_ref_names.close()
 		f_ref_SCp.close()
 		f_ref_SCp_N.close()
@@ -730,7 +731,8 @@ class mbinRunner:
 		logging.debug("Done.")
 
 		if opts.h5_type=="cmp":
-			reader     = CmpH5Reader(h5_file)
+			# reader     = CmpH5Reader(h5_file)
+			reader     = openIndexedAlignmentFile(h5_file)
 			to_check   = reader
 			entries    = range(len(to_check))
 		elif opts.h5_type=="bas":

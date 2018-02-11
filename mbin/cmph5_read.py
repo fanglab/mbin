@@ -4,8 +4,10 @@ import shutil
 import math
 import multiprocessing
 from pbcore.io.align.CmpH5IO import CmpH5Reader
+from pbcore.io import openIndexedAlignmentFile
 import subprocess
 import numpy as np
+import pysam
 from collections import OrderedDict,Counter,defaultdict
 import logging
 import mbin
@@ -16,10 +18,12 @@ import unicodedata
 
 import warnings
 warnings.simplefilter("error")
+warnings.filterwarnings("ignore",category=DeprecationWarning)
+
 
 class subread_motif_processor:
-	def __init__( self, cmph5, chunk_id, idx, N_target_reads, motifs, bi_motifs, opts ):
-		self.cmph5          = cmph5
+	def __init__( self, align_fn, chunk_id, idx, N_target_reads, motifs, bi_motifs, opts ):
+		self.align_fn       = align_fn
 		self.chunk_id       = chunk_id
 		self.idx            = idx
 		self.N_target_reads = N_target_reads
@@ -35,35 +39,38 @@ class subread_motif_processor:
 				"""
 				self.ref_base  = tup[0]
 				self.ipd       = tup[1]
-				# self.call      = tup[2]
-				# self.read_base = tup[3]
 				self.ref_pos   = tup[2]
 
 		class subread:
-			def __init__( self, cmph5, alignment, label, opts ):
+			def __init__( self, align_fn, alignment, label, opts ):
 				leftAnchor   = 1
 				rightAnchor  = 1
 				self.entries = {}
 				self.opts    = opts
 
 				self.subname    = alignment.readName
-				movieID         = alignment.movieInfo[0]
 				alignedLength   = alignment.referenceSpan
-				fps             = alignment.movieInfo[2]
 				self.refName    = alignment.referenceInfo[3]
 				zmw             = alignment.HoleNumber
-				self.mol        = alignment.MoleculeID
+
+
+				###########################################
+				# self.mol        = alignment.MoleculeID
+				self.mol        = alignment.HoleNumber
+				###########################################
+				
+
 				if alignment.isForwardStrand:
 					self.strand = 0
 				else:
 					self.strand = 1
+
 				self.ref_bases  = alignment.reference()
-				# self.read_bases = alignment.read()
-				
+
 				read_calls      = alignment.transcript()
 				ref_pos         = list(alignment.referencePositions())
 				IPD             = list(alignment.IPD())
-				self.label      = self.opts.h5_labels[cmph5]
+				self.label      = self.opts.aln_fn_labels[align_fn]
 
 				error_mk = []
 				for read_call in read_calls:
@@ -86,25 +93,22 @@ class subread_motif_processor:
 						pass
 				error_mk = np.array(error_mk)
 
-				ipds     = np.array(IPD) / fps
+				ipds     = np.array(IPD) / self.opts.fps
 				
 				strands  = np.array([self.strand] * len(read_calls))
 
 				self.ref_bases  = np.array(list(self.ref_bases))
-				# self.read_bases = np.array(list(self.read_bases))
 				self.ref_pos    = np.array(ref_pos)
 				read_calls      = np.array(list(read_calls))
 
 				# Mark the error positions, but leave them in the sequence so
 				# we can pull out intact motifs from contiguous correct bases
 				self.ref_bases[error_mk==1]  = "*"
-				# self.read_bases[error_mk==1] = "*"
-				read_calls[error_mk==1] = "*"
-				ipds[error_mk==1]       = -9
-				strands[error_mk==1]    = -9
+				read_calls[error_mk==1]      = "*"
+				ipds[error_mk==1]            = -9
+				strands[error_mk==1]         = -9
 
 				# Attach these IPD entries to the subread object
-				# for i,tup in enumerate(zip(self.ref_bases, ipds, read_calls, self.read_bases, self.ref_pos)):
 				for i,tup in enumerate(zip(self.ref_bases, ipds, self.ref_pos)):
 					entry = ipd_entry(tup)
 					self.entries[ self.ref_pos[i] ] = ipd_entry(tup)
@@ -161,7 +165,36 @@ class subread_motif_processor:
 				self.ref_str  = "".join(ref)
 				self.ref_pos  = ref_pos
 
-		reader = CmpH5Reader(self.cmph5)
+		if self.opts.aln_ftype=="cmp":
+			reader = CmpH5Reader(self.align_fn)
+		elif self.opts.aln_ftype=="bam":
+			reader = openIndexedAlignmentFile(self.align_fn, self.opts.ref)
+		else:
+			raise Exception("Unrecognized alignment filetype (must be *.cmp.h5 or *.bam): %s" % self.align_fn)
+
+		def get_fps(align_fn):
+			"""
+			For *.cmp.h5 files, frame rate (fps) is include in each alignment.
+			For *.bam files, the frame rate is encoded in the file header (FRAMERATEHZ)
+			"""
+			if self.opts.aln_ftype=="cmp":
+				# Read frame rate directly from a cmp.h5 alignment
+				reader    = CmpH5Reader(align_fn)
+				alignment = reader[0]
+				fps       = alignment.movieInfo[2]
+			
+			elif self.opts.aln_ftype=="bam":
+				# Isolate description (DS) from read group (RG) in BAM header
+				bam     = pysam.AlignmentFile(align_fn, "rb")
+				h       = bam.header
+				rg_ds_l = h.as_dict()["RG"][0]["DS"].split(";")
+				rg_ds_d = dict([ (x.split("=")[0], x.split("=")[1]) for x in rg_ds_l])
+				fps     = float(rg_ds_d["FRAMERATEHZ"])
+
+			return fps
+
+		# Pull the frame rate value from the alignment file
+		self.opts.fps = get_fps(self.align_fn)
 
 		read_refs     = {}
 		read_SMp      = {}
@@ -266,8 +299,8 @@ class subread_motif_processor:
 		to_check = reader[self.idx]
 		for alignment in to_check:
 			ref_contig = mbin.slugify(alignment.referenceInfo[3])
-			label      = self.opts.h5_labels[self.cmph5]
-			ref_len    = self.opts.cmph5_contig_lens[self.cmph5][ref_contig]
+			label      = self.opts.aln_fn_labels[self.align_fn]
+			ref_len    = self.opts.aln_fn_contig_lens[self.align_fn][ref_contig]
 			if ref_len >= self.opts.minContigLength and alignment.referenceSpan >= self.opts.readlength_min and alignment.MapQV >= self.opts.minMapQV:
 				to_get    = min(self.N_target_reads, len(self.idx))
 				incr      = to_get/10
@@ -278,7 +311,7 @@ class subread_motif_processor:
 				read_labs[readname] = label
 				read_refs[readname] = ref_contig
 
-				sub = subread( self.cmph5, alignment, label, self.opts )
+				sub = subread( self.align_fn, alignment, label, self.opts )
 				sub.zip_bases_and_IPDs()
 				subread_ipds,subread_comps = read_scanner.scan_motifs( "cmp",          \
 																	   # sub.read_str,   \
@@ -310,7 +343,7 @@ class subread_motif_processor:
 		if i==0:
 			logging.info("Chunk %s: no qualifying reads found!" % self.chunk_id)
 		
-		logging.info("Chunk %s: found %s alignments (%s molecules) > %sbp in %s" % (self.chunk_id, i, len(read_labs.keys()), self.opts.readlength_min, os.path.basename(self.cmph5)))
+		logging.info("Chunk %s: found %s alignments (%s molecules) > %sbp in %s" % (self.chunk_id, i, len(read_labs.keys()), self.opts.readlength_min, os.path.basename(self.align_fn)))
 		reader.close()
 
 		return self.tmp_fns

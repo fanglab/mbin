@@ -7,13 +7,13 @@ import motif_tools
 
 # def find_motif_matches( mode, motif, ref_str, read_str, strand ):
 def find_motif_matches( mode, motif, ref_str, strand ):
-	if mode == "cmp":
+	if mode == "aligned":
 		if strand == 0:
 			q_motif = motif_tools.sub_bases( motif_tools.rev_comp_motif(motif) )
 		elif strand == 1:
 			q_motif = motif_tools.sub_bases( motif_tools.comp_motif(motif) )
 		matches_iter = re.finditer(q_motif, ref_str)
-	elif mode == "bas":
+	elif mode == "unaligned":
 		q_motif = motif_tools.sub_bases( motif_tools.rev_comp_motif(motif) )
 		matches_iter = re.finditer(q_motif, ref_str)
 
@@ -50,7 +50,7 @@ def scan_motifs( mode, ipds, ref_str, strand, motifs, bi_motifs, opts ):
 	For each motif, find all occurrences in read.
 	"""
 	read_str = None
-	if mode == "bas":
+	if mode == "unaligned":
 		strand = 0
 	subread_ipds = motif_ipds( mode,      \
 							   ipds,      \
@@ -88,12 +88,12 @@ def walk_over_read( mode, subread_ipds, ref_str, read_ipds, strand, k, opts):
 		ipds = read_ipds[j:j+k]
 
 		if seq.find("*") == -1 and seq.find("X") == -1:
-			if mode == "cmp":
+			if mode == "aligned":
 				if strand == 0:
 					q_motif  = motif_tools.rev_comp_motif( seq )
 				elif strand == 1:
 					q_motif  = motif_tools.comp_motif( seq )
-			elif mode == "bas":
+			elif mode == "unaligned":
 				q_motif = motif_tools.rev_comp_motif( ref_str[j:j+k] )
 			
 			for base in opts.mod_bases:
@@ -101,12 +101,12 @@ def walk_over_read( mode, subread_ipds, ref_str, read_ipds, strand, k, opts):
 				for ref_index in ref_indexes:
 					rc_index = len(q_motif) - 1 - ref_index
 					
-					if mode == "cmp":
+					if mode == "aligned":
 						if strand == 0:
 							idx = rc_index
 						elif strand == 1:
 							idx = ref_index
-					elif mode == "bas":
+					elif mode == "unaligned":
 						idx = rc_index
 					IPD = ipds[idx]
 					
@@ -183,7 +183,7 @@ def motif_ipds( mode, read_ipds, ref_str, strand, motifs, bi_motifs, opts ):
 				motif_end   = match.span()[1]
 				motif_ipds.append( read_ipds[motif_start:motif_end] )
 
-			if mode == "cmp" and strand == 1:
+			if mode == "aligned" and strand == 1:
 				ipds = map(lambda x: x[ref_index], motif_ipds)
 			else:
 				ipds = map(lambda x: x[rc_index], motif_ipds)
@@ -219,7 +219,7 @@ def motif_ipds( mode, read_ipds, ref_str, strand, motifs, bi_motifs, opts ):
 					motif_end   = match.span()[1]
 					ref_str     = "".join([ref_str[:motif_start], "X"*len(motif), ref_str[motif_end:]])
 					read_ipds   = read_ipds[:motif_start] + ([100.0]*len(motif)) + read_ipds[motif_end:]
-					if mode == "cmp":
+					if mode == "aligned":
 						ref_str     = "".join([ref_str[:motif_start], "X"*len(motif), ref_str[motif_end:]])
 
 		# Loop over all possible contiguous motif sizes
