@@ -300,14 +300,40 @@ def __parseArgs():
 
 	usage = """%prog [--help] [options] <SEQ>_methyl_features.txt <SEQ>_other_features.txt
 
+	mapfeatures visualizes the landscape of high-dimensional sequence features 
+	using the Barnes Hut approximation of t-SNE (PCA support coming soon). The 
+	sequence features that are output from methylprofiles are often high-
+	dimensional (>3D), making it difficult to visualize the sequences. To ease 
+	this visualization for resolution of discrete sequence clusters in the feature 
+	space, t-SNE is used to reduce the dimensionality of the methylation, 
+	composition, and coverage features to 2D. The resulting 2D maps, which can be 
+	overlaid with sequence annotation labels (generated with Kraken, for instance), 
+	often reveals sequence clustering in the 2D feature space representing distinct
+	taxonomical groups for binning.
+
+	Two files from methylprofiles serve as input to mapfeatures: 
+	   (1) <prefix>_<seq>_methyl_features.txt
+	   (2) <prefix>_<seq>_other_features.txt 
+
+	<prefix> is defined by --prefix and <seq> is the sequence data type: contig, align, 
+	or read.
+
+
 	Examples:
+
+	### Plot contigs using supplied labels and make glyph size proportional to contig size ###
 
 	mapfeatures -i --labels=<LABELS.txt> --size_markers contig_methyl_features.txt contig_other_features.txt
 
+
+	### Plot aligned reads (longer than 500bp) using the supplied labels ###
+
 	mapfeatures -i --labels=<LABELS.txt> --l_min=500 align_methyl_features.txt align_other_features.txt
 
-	mapfeatures -i --l_min=10000 --n_seqs=1000 read_methyl_features.txt read_other_features.txt
 
+	### Plot N=1000 unaligned reads longer than 10,000bp ###
+
+	mapfeatures -i --l_min=10000 --n_seqs=1000 read_methyl_features.txt read_other_features.txt
 	"""
 
 	parser = optparse.OptionParser( usage=usage, description=__doc__ )
@@ -397,14 +423,17 @@ def __initLog( opts ):
 
 def __check_input( opts, args, parser ):
 	"""
-	Make sure the input is in the form of either a cmp.h5 file of aligned reads
-	or a FOFN of unaligned bas.h5 files. Also make sure that a reference fasta 
-	file is specified if 
+	Make sure the input consists of both files containing the 
+	features assessed using buildprofiles:
+	   <SEQ>_methyl_features.txt
+	   <SEQ>_other_features.txt
 	"""
 	if len(args)!=2:
-		print "ERROR -- expecting two arguments: \
-				 (1) <SEQ>_methyl_features.txt output from methylprofiles containing methylation features for mapping \
-				 (2) <SEQ>_other_features.txt output from methylprofiles containing alternative sequence features for mapping"
+		print "ERROR -- expecting two arguments:"
+		print "  (1) <SEQ>_methyl_features.txt output from methylprofiles containing methylation features for mapping"
+		print "  (2) <SEQ>_other_features.txt output from methylprofiles containing alternative sequence features for mapping"
+		print ""
+		sys.exit()
 
 	mfeats_fn  = args[0]
 	ofeats_fn  = args[1]

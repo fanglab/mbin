@@ -16,7 +16,7 @@ import motif_tools
 from Bio import SeqIO
 
 def launch():
-	opts, h5_files, motifs_fn = __parseArgs()
+	opts, input_files, motifs_fn = __parseArgs()
 	__initLog(opts)
 
 	motifs           = np.loadtxt(motifs_fn, dtype="str", ndmin=1)
@@ -37,7 +37,7 @@ def launch():
 		logging.info("Found entries for all %s motifs in %s" % (len(motifs), opts.control_pkl_name))
 
 
-	build_profiles(opts, h5_files, motifs, motifs_fn)
+	build_profiles(opts, input_files, motifs, motifs_fn)
 
 	print >> sys.stderr, "mBin methylation profiling has finished running. See log for details."
 
@@ -199,10 +199,10 @@ def find_motifs_in_control(opts, motifs):
 	return np.array(found_motifs), not_found
 
 def combine_subreads_for_read_level( tup ):
-	cmph5_file   = tup[0]
+	input_file   = tup[0]
 	contig       = tup[1]
 	tmp          = tup[2]
-	h5_labels    = tup[3]
+	aln_fn_labels    = tup[3]
 	j            = tup[4]
 	N_contigs    = tup[5]
 	logging.info("...contig %s (%s/%s)" % (contig, j, N_contigs))
@@ -292,7 +292,7 @@ def combine_subreads_for_read_level( tup ):
 	f_ipds_N     = open(reads_ipds_N_fn,  "w")
 	f_comp_N     = open(reads_comp_N_fn,  "w")
 	f_strands    = open(reads_strands_fn, "w")
-	label        = h5_labels[cmph5_file]
+	label        = aln_fn_labels[input_file]
 	for readname,row_idx in readname_row_idx.iteritems():
 		f_reads.write(  "%s\n" % readname)
 		f_labels.write( "%s\n" % label)
@@ -335,9 +335,10 @@ def combine_subreads_for_read_level( tup ):
 	for fn in contig_fns:
 		os.remove(fn)
 
-def build_profiles(opts, h5_files, motifs, motifs_fn):
+def build_profiles(opts, input_files, motifs, motifs_fn):
 	"""
-
+	Build profiles of methylation scores for the desired motifs
+	across the sequences, either contigs or unaligned reads.
 	"""
 	if os.path.exists(opts.tmp):
 		shutil.rmtree(opts.tmp)
@@ -356,23 +357,23 @@ def build_profiles(opts, h5_files, motifs, motifs_fn):
 	##################################################
 	# Launch analysis of <N_reads> for motif filtering
 	##################################################
-	for i,h5_file in enumerate(h5_files):
-		logging.info("Creating %s barcodes (%s motifs) from %s..." % (opts.N_reads, len(opts.motifs), h5_file))
-		mbinRunner.launch_data_loader( h5_file, opts.N_reads, i, opts )
+	for i,input_file in enumerate(input_files):
+		logging.info("Creating %s barcodes (%s motifs) from %s..." % (opts.N_reads, len(opts.motifs), input_file))
+		mbinRunner.launch_data_loader( input_file, opts.N_reads, i, opts )
 
-		if opts.h5_type=="cmp":
-			logging.info("Combining subread-level barcodes to get read-level barcodes from each contig...")
+		if opts.input_ftype=="cmp" or opts.input_ftype=="bam":
+			logging.info("Combining aligned subread-level barcodes to get read-level barcodes from each contig...")
 			contig_labels_fns = glob.glob( os.path.join(opts.tmp, "*_labels.tmp") )
 			contigs           = map(lambda x: os.path.basename(x).split("_labels.tmp")[0], contig_labels_fns)
-			args              = [ (h5_file, contig, opts.tmp, opts.h5_labels, i, len(contigs)) for i,contig in enumerate(contigs)]
+			args              = [ (input_file, contig, opts.tmp, opts.aln_fn_labels, i, len(contigs)) for i,contig in enumerate(contigs)]
 			results           = mbin.launch_pool( opts.procs, combine_subreads_for_read_level, args )
 
 			logging.info("Combining read-level barcodes from all contigs...")
 			mbinRunner.combine_read_level_barcodes_across_contigs()
 			logging.info("Done.")
 
-			logging.info("Creating contig-level barcodes (%s motifs) from %s..." % (len(opts.motifs), h5_file))
-			mbinRunner.combine_subreads_for_contig_level( h5_file )
+			logging.info("Creating contig-level barcodes (%s motifs) from %s..." % (len(opts.motifs), input_file))
+			mbinRunner.combine_subreads_for_contig_level( input_file )
 			logging.info("Done.")
 			n_contigs = len(np.loadtxt(os.path.join(opts.tmp, mbinRunner.fns["contig_names"]), dtype="str", ndmin=1))
 
@@ -381,7 +382,7 @@ def build_profiles(opts, h5_files, motifs, motifs_fn):
 				mbinRunner.combine_contigs_for_bin_level()
 				logging.info("Done.")
 
-	if opts.h5_type=="bas":
+	if opts.input_ftype=="bas":
 		# Combine subread data across multiple movies
 		logging.info("Combining subread data across all movies...")
 		results = mbinRunner.combine_subread_data_across_bas_movies()
@@ -395,19 +396,19 @@ def build_profiles(opts, h5_files, motifs, motifs_fn):
 			logging.info("Writing read-contig assignments based on %s..." % opts.sam)
 			mbinRunner.get_read_refs_from_SAM()
 			logging.info("Done.")
-			for i,h5_file in enumerate(h5_files):
-				logging.info("Creating contig-level barcodes (%s motifs) from %s..." % (len(opts.motifs), h5_file))
-				mbinRunner.combine_subreads_for_contig_level( h5_file )
+			for i,input_file in enumerate(input_files):
+				logging.info("Creating contig-level barcodes (%s motifs) from %s..." % (len(opts.motifs), input_file))
+				mbinRunner.combine_subreads_for_contig_level( input_file )
 				logging.info("Done.")
 			n_contigs = len(np.loadtxt(os.path.join(opts.tmp, mbinRunner.fns["contig_names"]), dtype="str", ndmin=1))
 
 	logging.info("Writing output files:")
 
-	if opts.h5_type=="cmp":
+	if opts.input_ftype=="cmp" or opts.input_ftype=="bam":
 		write_contig_features(mbinRunner, opts)
 		if opts.aligned_read_barcodes:
 			write_aligned_read_features( mbinRunner, opts )
-	elif opts.h5_type=="bas":
+	elif opts.input_ftype=="bas":
 		write_unaligned_read_features( mbinRunner, opts )
 
 	logging.info("Cleaning up temp files from methylation profiling...")
@@ -417,17 +418,53 @@ def build_profiles(opts, h5_files, motifs, motifs_fn):
 def __parseArgs():
 	"""Handle command line argument parsing"""
 
-	usage = """%prog [--help] [options] input_seqs motifs.txt
+	usage = """%prog [--help] [options] [input_seqs] [motifs_file]
 
-	where input_seqs can be one of the following file types:
-	    *.cmp.h5
-	    *.bas.h5
-	    FOFN listing multiple *bas.h5 files
+	methylprofiles compiles the methylation profiles (for contigs or reads)
+	across the motifs specified in the arguments. The methylation profiles 
+	can be constructed using either native reads aligned to assembled contigs 
+	(*.bam or *.cmp.h5) or unaligned reads (*.bas.h5), the latter of which can 
+	be supplied as a single bas.h5 file or a FOFN containing multiple *.bas.h5 
+	files. Unaligned BAM files are not currently supported.
 
-	Example:
+	The motifs specified in the motifs file must be line-separated and
+	indicate the methylated position in the motif using a 0-based index. For 
+	instance, GATC-1 indicates that the adenine position is methylated, while 
+	CATAG-3	says that the second adenine in the motif is methylated. This file
+	would look as follows:
 
-	methylprofiles -i --procs=4 --control_pkl_name=control_means.pkl aligned_reads.cmp.h5 motifs.txt
+	GATC-1
+	CATAG-3
 
+	Two files will be output from methylprofiles (and serve as input to the 
+	routine mapfeatures): 
+	   (1) <prefix>_<seq>_methyl_features.txt
+	   (2) <prefix>_<seq>_other_features.txt
+
+	<prefix> is defined by --prefix and <seq> is the sequence data type: contig, 
+	align, or read.
+
+
+	Usage examples:
+
+	### Using BAM of aligned reads as input and motifs specified in motifs.txt ###
+
+	methylprofiles -i --contigs=reference.fasta aligned_reads.bam motifs.txt
+	
+
+	### Using *.cmp.h5 of aligned reads as input and motifs specified in motifs.txt ###
+
+	methylprofiles -i --contigs=reference.fasta aligned_reads.cmp.h5 motifs.txt
+
+
+	### Using unaligned reads in a bas.h5 file ###
+
+	methylprofiles -i m12345.bas.h5 motifs.txt
+
+
+	### Using a FOFN of multiple bas.h5 files ###
+
+	methylprofiles -i bas.h5.fofn motifs.txt
 	"""
 
 	parser = optparse.OptionParser( usage=usage, description=__doc__ )
@@ -492,14 +529,14 @@ def __parseArgs():
 						 minMapQV=240,                         \
 						 procs=4,                              \
 						 N_reads=1000000000,                   \
-						 control_pkl_name="control_means.pkl", \
+						 control_pkl_name="control_ipds.pkl",  \
 						 no_subtract_control=False,            \
 						 cross_cov_bins=None,                  \
 						 )
 
 	opts, args = parser.parse_args( )
 
-	h5_files, motifs_fn  = __check_input( opts, args, parser )
+	input_files, motifs_fn  = __check_input( opts, args, parser )
 
 	opts.comp_only     = False
 	opts.sam           = None
@@ -519,7 +556,7 @@ def __parseArgs():
 	if not os.path.exists(opts.control_pkl_name):
 		parser.error("Can't find control IPDs pickle file: %s" % opts.control_pkl_name)
 
-	return opts,h5_files,motifs_fn
+	return opts,input_files,motifs_fn
 
 def __initLog( opts ):
 	"""Sets up logging based on command line arguments. Allows for three levels of logging:
@@ -557,66 +594,24 @@ def __initLog( opts ):
 
 def __check_input( opts, args, parser ):
 	"""
-	Make sure the input is in the form of either a cmp.h5 file of aligned reads
-	or a FOFN of unaligned bas.h5 files. Also make sure that a reference fasta 
-	file is specified if 
+	Verify that the input format looks OK and assess the input type.
 	"""
 	if len(args)!=2:
-		print "ERROR -- expecting two arguments: \
-				 (1) input hdf5 file (cmp.h5, bas.h5, or FOFN of bas.h5 files) \
-				 (2) file containing the motifs to analyze, separated by newlines, e.g.\
-				     \
-				     GATC-1\
-				     CATG-1\
-				     CAACGA-2"
+		print "ERROR -- expecting two arguments:"
+		print "    (1) input file (bam, cmp.h5, bas.h5, or FOFN of bas.h5 files)"
+		print "    (2) file containing the motifs to analyze, separated by newlines, e.g."
+		print "          GATC-1"
+		print "          CATG-1"
+		print "          CATAG-3"
+		print ""
+		sys.exit()
 
-	seq_input      = args[0]
-	motifs_fn      = args[1]
-	h5_files       = []
-	opts.h5_labels = {}
+	input_files, opts = mbin.check_input_ftype(opts, args, parser)
 
-	if seq_input[-6:]=="cmp.h5":
-		print "Found cmp.h5 of aligned reads:"
-
-		h5                         = os.path.abspath(seq_input)
-		opts.h5_type               = "cmp"
-		opts.cmph5_contig_lens     = {}
-		opts.cmph5_contig_lens[h5] = {}
-
-		h5_files.append(h5)
-		print "  -- %s" % h5
-		print "Getting contig information from %s..." % h5
-		reader = CmpH5Reader(h5)
-		for entry in reader.referenceInfoTable:
-			name                                  = entry[3]
-			length                                = entry[4]
-			slug_name                             = mbin.slugify(name)
-			opts.cmph5_contig_lens[h5][slug_name] = length
-			opts.h5_labels[h5]                    = "remove"
-		reader.close()
-
-	elif seq_input[-6:]=="bas.h5":
-		print "Found bas.h5 of unaligned reads:"
-		opts.h5_type = "bas"
-		h5           = os.path.abspath(seq_input)
-		h5_files.append( h5 )
-		opts.h5_labels[h5] = "remove"
-		print "  -- %s" % h5
-
-	elif seq_input[-5:]==".fofn":
-		print "Found FOFN of bas.h5 files of unaligned reads:"
-		opts.h5_type = "bas"
-		fofn_content = open(seq_input, "r").read().strip()
-		h5_files     = fofn_content.split("\n")
-		for h5 in h5_files:
-			h5 = os.path.abspath(h5)
-			print "  -- %s" % h5
-			opts.h5_labels[h5] = "remove"
-
-	if opts.h5_type=="bas" and opts.cross_cov_bins!=None:
+	if opts.input_ftype=="bas" and opts.cross_cov_bins!=None:
 		parser.error("Use of the --cross_cov_bins option is not compatible with bas.h5 inputs!")
 
-	if opts.h5_type=="cmp":
+	if opts.input_ftype=="cmp" or opts.input_ftype=="bam":
 		try:
 			for entry in SeqIO.parse(opts.contigs, "fasta"):
 				x = entry.seq
@@ -624,10 +619,12 @@ def __check_input( opts, args, parser ):
 		except:
 			parser.error("Please make sure the --contigs input is a valid fasta file.")
 
+	motifs_fn          = os.path.abspath(args[1])
+
 	if not os.path.exists(motifs_fn):
 		parser.error("Can't find file of motifs to include in methylation profile: %s" % motifs_fn)
 
-	return h5_files, motifs_fn
+	return input_files, motifs_fn
 
 if __name__ == "__main__":
 	main()

@@ -34,9 +34,9 @@ class subread_motif_processor:
 				self.ipd     = tup[1]
 
 		class subread:
-			def __init__( self, subname, label, base_calls, IPD, QV, opts ):
+			def __init__( self, subname, base_calls, IPD, QV, opts ):
 				self.subname = subname
-				self.label   = label
+				# self.label   = label
 				self.entries = {}
 				self.opts    = opts
 
@@ -213,7 +213,7 @@ class subread_motif_processor:
 
 		for y,zmw in enumerate(zmws_to_check):
 			has_good_subs = False
-			label         = self.opts.h5_labels[self.baxh5]
+			label         = self.opts.aln_fn_labels[self.baxh5]
 			subreads = [sub for sub in zmw.subreads]
 			# read_length = 0
 			# for sub in subreads:
@@ -236,9 +236,9 @@ class subread_motif_processor:
 					
 					
 
-					sub = subread( subname, label, base_calls, IPD, QV, self.opts )
+					sub = subread( subname, base_calls, IPD, QV, self.opts )
 					sub.zip_bases_and_IPDs()
-					subread_ipds,subread_comps = read_scanner.scan_motifs( "bas",          \
+					subread_ipds,subread_comps = read_scanner.scan_motifs( "unaligned",    \
 																		   sub.ipds,       \
 																		   sub.read_str,   \
 																		   "None",         \
@@ -273,11 +273,6 @@ class subread_motif_processor:
 
 			if i==self.N_target_reads:
 				break
-		# else:
-		# 	pass
-
-		# print "N reads:", i, "N subreads:", j
-		# print "================="
 
 		dump_data_to_proc_files( to_dump, read_labs )
 

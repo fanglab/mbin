@@ -14,18 +14,18 @@ import mbin
 import motif_tools
 
 def launch():
-	opts,control_h5 = __parseArgs()
+	opts,control_aln_fn = __parseArgs()
 	__initLog(opts)
 
-	extract_controls(opts, control_h5)
+	extract_controls(opts, control_aln_fn)
 
 	print >> sys.stderr, "mBin control extraction has finished running. See log for details."
 
-def extract_controls(opts, control_h5):
+def extract_controls(opts, control_aln_fn):
 	"""
 
 	"""
-	controls       = ControlRunner(control_h5, opts)
+	controls       = ControlRunner(control_aln_fn, opts)
 	mbinRunner     = mbin.mbinRunner(opts)
 
 	# Pulling the IPD data for each motif from the WGA cmp.h5 file
@@ -37,10 +37,10 @@ def extract_controls(opts, control_h5):
 	logging.info("Preparing to create new control data in %s" % opts.control_tmp)
 	controls.goto_control_output_dir()
 	
-	opts           = controls.scan_WGA_h5()
+	opts           = controls.scan_WGA_aligns()
 	filter_N_reads = opts.N_reads
 
-	mbinRunner.launch_data_loader( control_h5, filter_N_reads, 1, opts )
+	mbinRunner.launch_data_loader( control_aln_fn, filter_N_reads, 1, opts )
 	
 	controls.analyze_WGA_reads()
 	logging.info("Done.")
@@ -73,12 +73,35 @@ def chunks( l, n ):
 def __parseArgs():
 	"""Handle command line argument parsing"""
 
-	usage = """%prog [--help] [options] wga_input_hdf5
+	usage = """%prog [--help] [options] [input]
 
-	Example:
+	buildcontrols takes a set of whole-genome amplified (WGA) sequencing 
+	alignments, either in the legacy *.cmp.h5 PacBio format or the newer
+	aligned BAM format. buildcontrols then reads the polymerase kinetics
+	values from these alignments and constructs a pickled dictionary of
+	control IPD values for the specified set of motifs. This output is 
+	written to ./control_ipds.pkl by default.
 
-	buildcontrols -i --procs=4 --control_pkl_name=control_means.pkl wga_aligned_reads.cmp.h5
+	Examples:
 
+	### Get control IPD values from BAM file of aligned WGA reads ###
+
+	buildcontrols -i --ref=reference.fasta wga_aligned_reads.bam
+
+	
+	### Use 4 cores to process legacy cmp.h5 file of aligned WGA reads ###
+
+	buildcontrols -i --procs=4 wga_aligned_reads.cmp.h5
+
+	
+	### Only include data from the first 500 alignments (e.g. for testing) ###
+
+	buildcontrols -i --N_reads=500 --ref=reference.fasta wga_aligned_reads.bam
+
+
+	### Exclude all bipartite motifs from the control dictionary ###
+
+	buildcontrols -i --no_bipartite --ref=reference.fasta wga_aligned_reads.bam
 	"""
 
 	parser = optparse.OptionParser( usage=usage, description=__doc__ )
@@ -89,7 +112,7 @@ def __parseArgs():
 
 	parser.add_option( "--logFile", type="str", help="Write logging to file [log.controls]" )
 
-	parser.add_option( "--ref", type="str", help="Path to reference fasta file used in the alignment. Must be accompanied by an index file (use samtools faidx). Required if input BAM file of aligned reads (not needed for cmp.h5). [None]" )
+	parser.add_option( "--ref", type="str", help="Path to reference fasta file used in the alignment. Must be accompanied by an index file (use samtools faidx). Required if input is BAM file of aligned reads (not needed for cmp.h5). [None]" )
 	
 	parser.add_option( "--subreadlength_min", type="int", help="Minimum subread length to include for analysis [100]" )
 
@@ -107,7 +130,7 @@ def __parseArgs():
 	
 	parser.add_option( "--bipart_second", type="str", help="Bipartite motif configuration: acceptable length of second determinate component (comma-separated string of integers) [3,4]" )
 
-	parser.add_option( "--mod_bases", type="str", help="String containing bases to query for mods. Changing this is not recommended ['A'] ['A']" )
+	parser.add_option( "--mod_bases", type="str", help="String containing bases to query for mods. Changing this is not recommended ['A']" )
 
 	parser.add_option( "--minAcc", type="float", help="Min subread accuracy of read [0.8]" )
 
@@ -124,6 +147,7 @@ def __parseArgs():
 	parser.set_defaults( logFile="log.buildcontrols",        \
 						 info=False,                         \
 						 debug=False,                        \
+						 ref=None,                           \
 						 subreadlength_min=100,              \
 						 readlength_min=100,                 \
 						 min_kmer=4,                         \
@@ -141,7 +165,7 @@ def __parseArgs():
 						 control_pkl_name="control_ipds.pkl")
 
 	opts, args         = parser.parse_args( )
-	control_h5         = __check_input( opts, args, parser )
+	control_aln_fn     = __check_input( opts, args, parser )
 
 	if opts.no_bipartite:
 		opts.bipartite = False
@@ -172,15 +196,16 @@ def __parseArgs():
 	opts.tmp             = "tmp"
 	opts.minContigLength = 0
 	opts.comp_kmer       = 5
-	opts.h5_type         = "cmp"
+	# opts.h5_type         = "cmp"
 	opts.cross_cov_bins  = None
 	opts.sam             = None
 	opts.motifs_file     = None
 	opts.skip_motifs     = None
 	
 	opts.control_pkl_name = os.path.abspath(opts.control_pkl_name)
+	opts.ref              = os.path.abspath(opts.ref)
 
-	return opts,control_h5
+	return opts,control_aln_fn
 
 def __initLog( opts ):
 	"""Sets up logging based on command line arguments. Allows for three levels of logging:
@@ -217,25 +242,27 @@ def __initLog( opts ):
 	logger.addHandler(fh)
 
 def __check_input( opts, args, parser ):
-	control_h5 = os.path.abspath(args[0])
+	control_aln_fn = os.path.abspath(args[0])
 
-	if control_h5[-6:]=="cmp.h5":
+	if control_aln_fn[-7:]==".cmp.h5":
 		opts.aln_ftype = "cmp"
-	elif control_h5[-4:]==".bam":
+		opts.aligned = True
+	elif control_aln_fn[-4:]==".bam":
 		opts.aln_ftype = "bam"
+		opts.aligned = True
 	else:
-		parser.error("Could not recognize valid input (BAM or cmp.h5 file of aligned reads): %s" % control_h5)
+		parser.error("Could not recognize valid input (BAM or cmp.h5 file of aligned reads): %s" % control_aln_fn)
 
 	if opts.aln_ftype=="bam" and opts.ref==None:
 		parser.error("With BAM input, must specify reference fasta using --ref. Fasta must be indexed (use samtools faidx).")
 
 	# if opts.contigs==None:
-	# 	parser.error("Please specify the fasta file used for the alignments in %s!" % control_h5)
+	# 	parser.error("Please specify the fasta file used for the alignments in %s!" % control_aln_fn)
 
 	if len(args) != 1:
 		parser.error( "Expected 1 argument." )
 
-	return control_h5
+	return control_aln_fn
 
 def process_contig_chunk( args ):
 	chunk_id        = args[0]
@@ -278,7 +305,7 @@ class ControlRunner:
 		Point to the appropriate WGA sequencing data files
 		to generate the control IPD values for the motifs. 
 		"""
-		self.control_h5 = wga_h5
+		self.control_aln_fn = wga_h5
 		self.opts       = opts
 		self.orig_dir   = os.getcwd()
 
@@ -310,23 +337,23 @@ class ControlRunner:
 		"""
 		os.chdir(self.orig_dir)
 
-	def scan_WGA_h5( self ):
+	def scan_WGA_aligns( self ):
 		"""
 		Get some necessary information about the WGA cmp.h5 
 		being used to generate the control IPD data.
 		"""
-		self.opts.aln_fn_labels                       = {}
-		self.opts.aln_fn_contig_lens                  = {}
-		self.opts.aln_fn_labels[self.control_h5]      = "control"
-		self.opts.aln_fn_contig_lens[self.control_h5] = {}
+		self.opts.aln_fn_labels                           = {}
+		self.opts.aln_fn_contig_lens                      = {}
+		self.opts.aln_fn_labels[self.control_aln_fn]      = "control"
+		self.opts.aln_fn_contig_lens[self.control_aln_fn] = {}
 		
-		# reader = CmpH5Reader(self.control_h5)
-		reader = openIndexedAlignmentFile(self.control_h5)
+		# reader = CmpH5Reader(self.control_aln_fn)
+		reader = openIndexedAlignmentFile(self.control_aln_fn)
 		for entry in reader.referenceInfoTable:
 			name      = entry[3]
 			length    = entry[4]
 			slug_name = mbin.slugify(name)
-			self.opts.aln_fn_contig_lens[self.control_h5][slug_name] = length
+			self.opts.aln_fn_contig_lens[self.control_aln_fn][slug_name] = length
 		reader.close()
 
 		return self.opts
@@ -340,12 +367,17 @@ class ControlRunner:
 		ftypes      = set( map(lambda x: "_".join(os.path.basename(x).split("_")[2:]), control_fns) )
 		for ftype in ftypes:
 			if ftype in ["compkmers.tmp", "ipdskmers.tmp"]:
-				first_fn = glob.glob( os.path.join(self.opts.tmp, "unitig_*_%s" % ftype) )[0]
+				# first_fn = glob.glob( os.path.join(self.opts.tmp, "unitig_*_%s" % ftype) )[0]
+				first_fn = glob.glob( os.path.join(self.opts.tmp, "*_%s" % ftype) )[0]
 				shutil.copy( first_fn, os.path.join(self.opts.tmp, "control_%s" % ftype) )
-				for fn in glob.glob( os.path.join(self.opts.tmp, "unitig_*_%s" % ftype) ):
+				
+				ftype_fns = glob.glob( os.path.join(self.opts.tmp, "*_%s" % ftype))
+				to_rm     = [fn for fn in ftype_fns if not os.path.basename(fn).startswith("control_")]
+				for fn in to_rm:
 					os.remove(fn)
 			else:
-				to_cat = glob.glob( os.path.join(self.opts.tmp, "unitig_*_%s" % ftype) )
+				ftype_fns = glob.glob( os.path.join(self.opts.tmp, "*_%s" % ftype) )
+				to_cat    = [fn for fn in ftype_fns if not os.path.basename(fn).startswith("control_")]
 				to_cat.sort()
 				outname = os.path.join(self.opts.tmp, "control_%s" % ftype )
 				mbin.cat_list_of_files(to_cat, outname)

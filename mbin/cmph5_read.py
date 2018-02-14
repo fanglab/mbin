@@ -313,8 +313,7 @@ class subread_motif_processor:
 
 				sub = subread( self.align_fn, alignment, label, self.opts )
 				sub.zip_bases_and_IPDs()
-				subread_ipds,subread_comps = read_scanner.scan_motifs( "cmp",          \
-																	   # sub.read_str,   \
+				subread_ipds,subread_comps = read_scanner.scan_motifs( "aligned",      \
 																	   sub.ipds,       \
 																	   sub.ref_str,    \
 																	   sub.strand,     \

@@ -2,6 +2,7 @@ import os,sys
 import optparse
 import logging
 from pbcore.io.align.CmpH5IO import CmpH5Reader
+from pbcore.io import openIndexedAlignmentFile
 from pbcore.io.BasH5IO import BasH5Reader
 import glob
 import numpy as np
@@ -22,16 +23,16 @@ import unicodedata
 import re
 
 def launch():
-	opts,h5_files = __parseArgs()
+	opts,input_files = __parseArgs()
 	__initLog(opts)
 
 	opts = get_control_motifs(opts)
 
-	filter_motifs(opts, h5_files)
+	filter_motifs(opts, input_files)
 
 	print >> sys.stderr, "mBin motif filtering has finished running. See log for details."
 
-def filter_motifs(opts, h5_files):
+def filter_motifs(opts, input_files):
 	"""
 	Samples N=<N_reads> reads and looks for evidence of methylation
 	in all the motifs in the query space.
@@ -64,11 +65,11 @@ def filter_motifs(opts, h5_files):
 	##################################################
 	# Launch analysis of <N_reads> for motif filtering
 	##################################################
-	for i,h5_file in enumerate(h5_files):
-		logging.info("Creating %s barcodes (%s motifs) from %s..." % (opts.N_reads, (len(opts.motifs)+len(opts.bi_motifs)), h5_file))
-		mbinRunner.launch_data_loader( h5_file, opts.N_reads, i, opts )
+	for i,input_file in enumerate(input_files):
+		logging.info("Creating %s barcodes (%s motifs) from %s..." % (opts.N_reads, (len(opts.motifs)+len(opts.bi_motifs)), input_file))
+		mbinRunner.launch_data_loader( input_file, opts.N_reads, i, opts )
 
-	if opts.h5_type=="bas":
+	if opts.input_ftype=="bas":
 		# Combine subread data across multiple movies
 		logging.info("Combining subread data across all movies...")
 		results = mbinRunner.combine_subread_data_across_bas_movies()
@@ -78,7 +79,7 @@ def filter_motifs(opts, h5_files):
 		results = mbinRunner.bas_combine_subreads_for_read_level( tmp_run=True )
 		logging.info("Done.")
 
-	filter_runner = FilterRunner(opts, h5_files)
+	filter_runner = FilterRunner(opts, input_files)
 	filter_runner.run(mbinRunner)
 
 	logging.info("Cleaning up temp files from motif filtering...")
@@ -357,18 +358,58 @@ def simplify_motifs( tup ):
 def __parseArgs():
 	"""Handle command line argument parsing"""
 
-	usage = """%prog [--help] [options] input_hdf5
+	usage = """%prog [--help] [options] [input]
+
+	filtermotifs compares the native IPD values in the metagenomic sequencing with 
+	those obtained from control WGA sequencing data. Motifs that have methylation
+	scores greater than the value specified with --minMotifIPD will be written to
+	the file specified by --motifs_fn. All other motifs will be discarded.
+
+	Valid inputs include both aligned and unaligned formats, although the use of 
+	unaligned reads as inputs is not recommended. Unaligned reads contain significant	
+	numbers of sequencing errors that introduce noise into the motif IPD signals, 
+	making it extremely difficult to detect truly methylated motifs from unaligned 
+	reads.The valid aligned formats include both an aligned BAM or legacy *.cmp.h5 
+	file. If using unaligned reads, the only supported format is *.bas.h5 (or a FOFN 
+	containing multiple bas.h5 files). Unaligned BAM files are not currently 
+	supported.
+
+	Any motifs that are detected as methylated in the sample will be written to 
+	the output file specified by --motifs_fn. The will be line-separated and
+	indicate the methylated position in the motif using a 0-based index. For 
+	instance, GATC-1 indicates that the adenine position is methylated, while 
+	CATAG-3	says that the second adenine in the motif is methylated. This output 
+	file (called motifs.txt by default) would look as follows:
+
+	GATC-1
+	CATAG-3
+
 
 	Examples:
 
-	Using a cmp.h5 file of aligned reads as input (recommended):
-	filtermotifs -i --procs=4 --contigs=reference.fasta --control_pkl_name=control_means.pkl aligned_reads.cmp.h5
+	### Using a BAM file of aligned reads as input ###
 
-	Using a bas.h5 file of unaligned reads as input (not recommended):
-	filtermotifs -i --procs=4 --contigs=reference.fasta --control_pkl_name=control_means.pkl m12345.bas.h5
+	filtermotifs -i --contigs=reference.fasta aligned_reads.bam
 
-	Using a FOFN file of containing multiple files of bas.h5 unaligned reads as input (not recommended):
-	filtermotifs -i --procs=4 --contigs=reference.fasta --control_pkl_name=control_means.pkl bas.h5.fofn
+
+	### Using a cmp.h5 file of aligned reads as input ###
+	
+	filtermotifs -i --contigs=reference.fasta aligned_reads.cmp.h5
+
+
+	### Only include data from the first 500 alignments (e.g. for testing) ###
+
+	filtermotifs -i --N_reads=500 --contigs=reference.fasta aligned_reads.bam
+
+
+	### Using a bas.h5 file of unaligned reads as input (not recommended) ###
+	
+	filtermotifs -i m12345.bas.h5
+
+
+	### Using a FOFN file of multiple bas.h5 files as input (not recommended) ###
+	
+	filtermotifs -i bas.h5.fofn
 	"""
 
 	parser = optparse.OptionParser( usage=usage, description=__doc__ )
@@ -381,7 +422,7 @@ def __parseArgs():
 
 	parser.add_option( "--procs", type="int", help="Number of cores to use [4]" )
 	
-	parser.add_option( "--contigs", type="str", help="Fasta file containing entries for the assembled contigs [None]" )
+	parser.add_option( "--contigs", type="str", help="Path to contig fasta file used in the alignment. Must be accompanied by an index file (use samtools faidx). Required if input is file of aligned reads (BAM or cmp.h5). [None]" )
 
 	parser.add_option( "--control_pkl_name", type="str", help="Filename of control IPD data from WGA sequencing, generated using buildcontrols [control_ipds.pkl]" )
 	
@@ -434,7 +475,7 @@ def __parseArgs():
 						 debug=False,                          \
 						 procs=4,                              \
 						 contigs=None,                         \
-						 control_pkl_name="control_means.pkl", \
+						 control_pkl_name="control_ipds.pkl",  \
 						 motifs_fn="motifs.txt",               \
 						 N_reads=20000,                        \
 						 tmp="filter_tmp",                     \
@@ -461,7 +502,7 @@ def __parseArgs():
 
 	opts, args = parser.parse_args( )
 
-	h5_files   = __check_input( opts, args, parser )
+	input_files   = __check_input( opts, args, parser )
 
 	if opts.no_bipartite:
 		opts.bipartite = False
@@ -496,10 +537,11 @@ def __parseArgs():
 	opts.skip_motifs     = None
 	opts.control_run     = False
 	opts.bas_whitelist   = None
+	opts.ref             = opts.contigs
 	
 	opts.control_pkl_name = os.path.abspath(opts.control_pkl_name)
 
-	return opts,h5_files
+	return opts,input_files
 
 def __initLog( opts ):
 	"""Sets up logging based on command line arguments. Allows for three levels of logging:
@@ -537,65 +579,28 @@ def __initLog( opts ):
 
 def __check_input( opts, args, parser ):
 	"""
-	Make sure the input is in the form of either a cmp.h5 file of aligned reads
-	or a FOFN of unaligned bas.h5 files. Also make sure that a reference fasta 
-	file is specified if 
+	Verify that the input format looks OK and assess the input type.
 	"""
-	arg            = args[0]
-	h5_files       = []
-	opts.h5_labels = {}
+	
+	input_files, opts = mbin.check_input_ftype(opts, args, parser)
 
-	if arg[-6:]=="cmp.h5":
-		print "Found cmp.h5 of aligned reads:"
-
-		opts.h5_type                = "cmp"
-		opts.cmph5_contig_lens      = {}
-		opts.cmph5_contig_lens[arg] = {}
-
-		h5_files.append(arg)
-		print "  -- %s" % arg
-		print "Getting contig information from %s..." % arg
-		reader = CmpH5Reader(arg)
-		for entry in reader.referenceInfoTable:
-			name                                   = entry[3]
-			length                                 = entry[4]
-			slug_name                              = mbin.slugify(name)
-			opts.cmph5_contig_lens[arg][slug_name] = length
-			opts.h5_labels[arg]                    = "remove"
-		reader.close()
-
-	elif arg[-6:]=="bas.h5":
-		print "Found bas.h5 of unaligned reads:"
-		opts.h5_type        = "bas"
-		h5_files.append(arg)
-		opts.h5_labels[arg] = "remove"
-		print "  -- %s" % arg
-
-	elif arg[-5:]==".fofn":
-		print "Found FOFN of bas.h5 files:"
-		opts.h5_type = "bas"
-		fns          = map(lambda x: x.strip("\n"), np.atleast_1d(open(arg, "r").read()))
-		h5_files     = fns
-		for fn in fns:
-			print "  -- %s" % fn
-			opts.h5_labels[fn] = "remove"
-
-	if opts.h5_type=="bas":
+	if opts.input_ftype=="bas":
 		print "*************************************************************"
 		print "* Motif filtering using unaligned reads is not recommended. *" 
-		print "*         Aligned reads work much better for this!          *"
+		print "*         Aligned reads work *much* better for this!        *"
 		print "*************************************************************"
 		print ""
+		opts.aligned = False
 
-	if opts.h5_type=="bas" and opts.cross_cov_bins!=None:
+	if opts.input_ftype=="bas" and opts.cross_cov_bins!=None:
 		parser.error("Use of the --cross_cov_bins option is not compatible with bas.h5 inputs!")
 
-	return h5_files
+	return input_files
 
 class FilterRunner:
-	def __init__(self, opts, h5_files):
+	def __init__(self, opts, input_files):
 		self.opts     = opts
-		self.h5_files = h5_files
+		self.input_files = input_files
 
 	def add_degen_motifs( self, motifs, orig_control_means ):
 		"""
@@ -661,7 +666,7 @@ class FilterRunner:
 		####################################################
 		logging.info("Getting top motifs from each contig...")
 
-		if self.opts.h5_type=="cmp":
+		if self.opts.aligned:
 			
 			self.contig_fasta_lens = {}
 			for entry in SeqIO.parse(self.opts.contigs, "fasta"):
@@ -818,7 +823,7 @@ class FilterRunner:
 			if n_degen>0:
 				pickle.dump(control_means, open(self.opts.control_pkl_name, "wb"))
 		
-		elif self.opts.h5_type=="bas":
+		else:
 			logging.info("Transposing reads...")
 			files   = [os.path.join(self.opts.tmp, "read_ipds.tmp"), os.path.join(self.opts.tmp, "read_ipdsN.tmp")]
 			results = mbin.launch_pool( len(files), transpose_file, files )

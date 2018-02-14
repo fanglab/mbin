@@ -102,6 +102,90 @@ def cat_subreads_files_from_subprocs( subproc_tmp_files, movie_i, opts ):
 			catted_name = os.path.join(opts.tmp, "subreads_%s" % ftype.replace(".tmp", ".%s.tmp" % movie_i))
 			cat_list_of_files( ftype_fns, catted_name, del_ins=False )
 
+def check_input_ftype(opts, args, parser):
+	"""
+	Make sure the input is in the form of either:
+	  (a) a cmp.h5 file of aligned reads
+	  (b) a bam file of aligned reads
+	  (c) an unaligned bas.h5 file
+	  (d) a FOFN of unaligned bas.h5 files
+
+	Also make sure a fasta file of the assembled contigs is 
+	specified if input is a *.cmp.h5 or *.bam file containing
+	read alignments to those contigs.
+	"""
+
+	input_fn           = os.path.abspath(args[0])
+	input_files        = []
+	opts.aln_fn_labels = {}
+
+	if input_fn[-7:]==".cmp.h5":
+		print "Found cmp.h5 of aligned reads:"
+		opts.input_ftype                  = "cmp"
+		opts.aln_fn_contig_lens           = {}
+		opts.aln_fn_contig_lens[input_fn] = {}
+
+		input_files.append(input_fn)
+		print "  -- %s" % input_fn
+		print "Getting contig information from %s..." % input_fn
+		reader = CmpH5Reader(input_fn)
+		for entry in reader.referenceInfoTable:
+			name                                         = entry[3]
+			length                                       = entry[4]
+			slug_name                                    = slugify(name)
+			opts.aln_fn_contig_lens[input_fn][slug_name] = length
+			opts.aln_fn_labels[input_fn]                 = "ignore"
+		reader.close()
+		opts.aligned   = True
+		opts.aln_ftype = "cmp"
+
+	elif input_fn[-4:]==".bam":
+		print "Found BAM file of aligned reads:"
+		opts.input_ftype                  = "bam"
+		opts.aln_fn_contig_lens           = {}
+		opts.aln_fn_contig_lens[input_fn] = {}
+
+		input_files.append(input_fn)
+		print "  -- %s" % input_fn 
+		print "Getting contig information from %s..." % input_fn
+		if  opts.contigs==None:
+			parser.error("With aligned (BAM or cmp.h5) input, must specify reference fasta using --contigs. For aligned BAM input, fasta must be indexed (use samtools faidx).")
+		else:
+			# reader = openIndexedAlignmentFile(input_fn, opts.contigs)
+			reader = openIndexedAlignmentFile(input_fn)
+		for entry in reader.referenceInfoTable:
+			name                                         = entry[3]
+			length                                       = entry[4]
+			slug_name                                    = slugify(name)
+			opts.aln_fn_contig_lens[input_fn][slug_name] = length
+			opts.aln_fn_labels[input_fn]                 = "ignore"
+		reader.close()
+		opts.aligned   = True
+		opts.aln_ftype = "bam"
+
+	elif input_fn[-7:]==".bas.h5":
+		print "Found bas.h5 of unaligned reads:"
+		opts.input_ftype = "bas"
+		input_files.append(input_fn)
+		opts.aln_fn_labels[input_fn] = "ignore"
+		print "  -- %s" % input_fn
+		opts.aligned = False
+
+	elif input_fn[-5:]==".fofn":
+		print "Found FOFN of bas.h5 files:"
+		opts.input_ftype = "bas"
+		fns              = map(lambda x: x.strip("\n"), np.atleast_1d(open(input_fn, "r").read()))
+		input_files      = fns
+		for fn in fns:
+			if fn[-7:]!=".bas.h5":
+				parser.error("Expected to find a *.bas.h5 file, instead found %s" % fn)
+			else:
+				print "  -- %s" % fn
+				opts.aln_fn_labels[fn] = "ignore"
+		opts.aligned = False
+
+	return input_files, opts
+
 class mbinRunner:
 	def __init__( self, opts ):
 		"""
@@ -112,7 +196,7 @@ class mbinRunner:
 		##########################################################
 		# Define output filenames
 		##########################################################
-		if self.opts.h5_type=="cmp":
+		if self.opts.aligned:
 			#############################################
 			# Define the alignment-level output filenames
 			#############################################
@@ -160,7 +244,7 @@ class mbinRunner:
 				self.fns["bin_SCp"]          = "bins.SCp"
 				self.fns["bin_SCp_N"]        = "bins.SCp_N"
 
-		elif self.opts.h5_type=="bas":
+		else:
 			#############################################
 			# Define the unaligned read-level output filenames
 			#############################################
@@ -212,7 +296,7 @@ class mbinRunner:
 	def launch_data_loader( self, h5_file, N_reads, movie_i, opts ):
 		logging.info("Loading data from %s..." % h5_file)
 		results = self.launch_subprocs( h5_file, N_reads, opts )
-		if opts.h5_type=="cmp":
+		if opts.aligned:
 			contig_tmps = defaultdict(list)
 			for p,result in enumerate(results):
 				for fn in result:
@@ -221,7 +305,7 @@ class mbinRunner:
 			logging.info("Catting contig-specific data from parallel processes...")
 			args    = [(contig, opts.tmp, i, len(contig_tmps.keys())) for i,contig in enumerate(contig_tmps.keys())]
 			results = launch_pool( opts.procs, cat_contig_files_from_subprocs, args )
-		elif opts.h5_type=="bas":
+		else:
 			logging.info("Catting subprocess-specific data from parallel processes...")
 			subproc_tmp_files = defaultdict(list)
 			for result in results:
@@ -722,7 +806,7 @@ class mbinRunner:
 		f_names.close()
 		f_lens.close()
 
-	def launch_subprocs( self, h5_file, N_reads, opts ):
+	def launch_subprocs( self, input_file, N_reads, opts ):
 		"""
 		"""
 		logging.debug("Creating tasks...")
@@ -730,13 +814,12 @@ class mbinRunner:
 		results = multiprocessing.Queue()
 		logging.debug("Done.")
 
-		if opts.h5_type=="cmp":
-			# reader     = CmpH5Reader(h5_file)
-			reader     = openIndexedAlignmentFile(h5_file)
+		if opts.aligned:
+			reader     = openIndexedAlignmentFile(input_file)
 			to_check   = reader
 			entries    = range(len(to_check))
-		elif opts.h5_type=="bas":
-			reader     = BasH5Reader(h5_file)
+		else:
+			reader     = BasH5Reader(input_file)
 			if opts.bas_whitelist != None and not opts.control_run:
 				logging.info("Intersecting with whitelist...")
 				bas_whitelist = set(np.loadtxt(opts.bas_whitelist, dtype="str"))
@@ -780,7 +863,7 @@ class mbinRunner:
 			reads_left -= N_target_reads[job]
 			procs_left -= 1
 
-		logging.debug("Partitioning %s into %s chunks for analysis..." % (h5_file, num_jobs))
+		logging.debug("Partitioning %s into %s chunks for analysis..." % (input_file, num_jobs))
 		chunksize      = int(math.ceil(float( len(entries)/procs )))
 		logging.info("Querying %s reads using %s chunks of size %s..." % (len(to_check), procs, chunksize))
 		entries_chunks = list(self.chunks( entries, chunksize ))
@@ -789,11 +872,11 @@ class mbinRunner:
 			# If --N_reads used, this ensures we touch as many contigs as possible
 			idx = entries_chunks[chunk_id]
 			np.random.shuffle(idx)
-			if opts.h5_type=="cmp":
-				tasks.put(cmph5_read.subread_motif_processor( h5_file, chunk_id, idx, n, opts.motifs, opts.bi_motifs, opts) )
+			if opts.aligned:
+				tasks.put(cmph5_read.subread_motif_processor( input_file, chunk_id, idx, n, opts.motifs, opts.bi_motifs, opts) )
 				logging.debug("...%s (%s alignments)" % (chunk_id, len(entries)))
-			elif opts.h5_type=="bas":
-				tasks.put(baxh5_read.subread_motif_processor( h5_file, chunk_id, idx, n, opts.motifs, opts.bi_motifs, opts) )
+			else:
+				tasks.put(baxh5_read.subread_motif_processor( input_file, chunk_id, idx, n, opts.motifs, opts.bi_motifs, opts) )
 				logging.debug("...%s (%s reads)" % (chunk_id, len(entries)))
 		logging.debug("Done")
 		
