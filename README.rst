@@ -32,7 +32,7 @@ For a comprehensive guide on how to install and run mBin, please see the full `d
 
 Citations
 ---------
-Beaulaurier J, Zhu S, Deikus G, Mogno I, Zhang XS, Davis-Richardson A, Canepa R, Triplett E, Faith J, Sebra R, Schadt EE, Fang G. Metagenomic binning and association of plasmids with bacterial host genomes using DNA methylation. *Nature Biotechnology* (2017). doi:10.1038/nbt.4037.
+Beaulaurier J, Zhu S, Deikus G, Mogno I, Zhang XS, Davis-Richardson A, Canepa R, Triplett E, Faith J, Sebra R, Schadt EE, Fang G. Metagenomic binning and association of plasmids with bacterial host genomes using DNA methylation. *Nature Biotechnology* **36**, 61-69 (2018). doi:10.1038/nbt.4037.
 
 Credits
 ---------
