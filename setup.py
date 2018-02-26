@@ -5,6 +5,7 @@
 
 from setuptools import setup, find_packages
 
+globals = {}
 execfile("mbin/__init__.py", globals)
 __version__ = globals["__version__"]
 __author__ = globals["__author__"]
