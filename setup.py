@@ -5,6 +5,11 @@
 
 from setuptools import setup, find_packages
 
+execfile("mbin/__init__.py", globals)
+__version__ = globals["__version__"]
+__author__ = globals["__author__"]
+__email__ = globals["__email__"]
+
 with open('README.rst') as readme_file:
     readme = readme_file.read()
 
@@ -32,11 +37,11 @@ test_requirements = [
 
 setup(
     name='mbin',
-    version='1.1.0',
+    version=__version__,
+    author=__author__,
+    author_email=__email__,
     description="mBin: a methylation-based binning framework for metagenomic SMRT sequencing reads",
     long_description=readme + '\n\n' + history,
-    author="John Beaulaurier",
-    author_email='john.beaulaurier@gmail.com',
     url='https://github.com/fanglab/mbin',
     packages=find_packages(include=['mbin']),
     include_package_data=True,

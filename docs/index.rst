@@ -37,12 +37,9 @@ Contents
    readme
    installation
    usage
-   modules
    contributing
 
-Indices and tables
-==================
+Search
+^^^^^^
 
-* :ref:`genindex`
-* :ref:`modindex`
 * :ref:`search`
