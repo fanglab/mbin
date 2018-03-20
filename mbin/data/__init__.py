@@ -28,11 +28,11 @@ class Opts:
 		self.contigs='pHel3.fa'
 		self.minMotifIPD=1.7
 		self.minQV=0.0
-		self.min_kmer=4
 		self.subreadlength_min=100
 		self.N_reads=1000000000
 		self.h5_type='cmp'
 		self.readlength_min=100
+		self.min_kmer=4
 		self.max_kmer=6
 		self.mod_bases='A'
 		self.N_motif_reads=20000
@@ -48,8 +48,7 @@ class Opts:
 		self.comp_only=False
 		self.motif_discov_only=False
 		self.cross_cov_bins=None
-		self.bipartite=False
-		self.motifs_file=None
+		self.bipartite=True
 		self.skip_motifs=None
 		self.printIPDs=False
 		self.min_pct=5.0
@@ -61,12 +60,8 @@ class Opts:
 		self.motifs_file=getMotifsFile()
 		self.control_dir=getControl()
 
-		print self.control_dir
-		print ""
-		
 def _getAbsPath(fname):
 	return resource_filename(Requirement.parse('mbin'),'mbin/data/%s' % fname)
-
 
 def getCmpH5():
 	"""

@@ -5,7 +5,6 @@ import numpy as np
 import logging
 import motif_tools
 
-# def find_motif_matches( mode, motif, ref_str, read_str, strand ):
 def find_motif_matches( mode, motif, ref_str, strand ):
 	if mode == "aligned":
 		if strand == 0:
@@ -22,7 +21,7 @@ def find_motif_matches( mode, motif, ref_str, strand ):
 		matches_list.append(match)
 	return matches_list
 
-def kmer_freq ( mode, ref_str, strand, opts ):
+def kmer_freq ( ref_str, strand, opts ):
 	ref_str = ref_str.upper()
 	if strand==1:
 		ref_str = ref_str[::-1]
@@ -72,8 +71,7 @@ def scan_motifs( mode, ipds, ref_str, strand, motifs, bi_motifs, opts ):
 			score = compute_score( ipds )
 		subread_barcode[motif] = ( len(ipds), score )
 
-	subread_kmers = kmer_freq( mode,     \
-							   ref_str, \
+	subread_kmers = kmer_freq( ref_str, \
 							   strand,  \
 							   opts )
 	return subread_barcode, subread_kmers
@@ -83,7 +81,7 @@ def walk_over_read( mode, subread_ipds, ref_str, read_ipds, strand, k, opts):
 	Loop over each position in the read string, adding motifs as they
 	are encountered in the walk.
 	"""
-	for j in range( len(ref_str)-3 ):
+	for j in range( len(ref_str) - (k-1) ):
 		seq  = ref_str[j:j+k]
 		ipds = read_ipds[j:j+k]
 
@@ -94,7 +92,7 @@ def walk_over_read( mode, subread_ipds, ref_str, read_ipds, strand, k, opts):
 				elif strand == 1:
 					q_motif  = motif_tools.comp_motif( seq )
 			elif mode == "unaligned":
-				q_motif = motif_tools.rev_comp_motif( ref_str[j:j+k] )
+				q_motif = motif_tools.rev_comp_motif( seq )
 			
 			for base in opts.mod_bases:
 				ref_indexes = [m.start() for m in re.finditer(base, q_motif)]
@@ -122,37 +120,44 @@ def walk_over_read( mode, subread_ipds, ref_str, read_ipds, strand, k, opts):
 						pass
 	return subread_ipds
 
-def walk_over_read_bipartite( subread_ipds, ref_str, read_ipds, strand, opts ):
+def walk_over_read_bipartite( mode, subread_ipds, ref_str, read_ipds, strand, opts ):
 	"""
 	Loop over each position in the read string, adding motifs as they
 	are encountered in the walk.
 	"""
-	max_motif_len = 15
 	firsts        = opts.bipart_config[0]
 	Ns            = opts.bipart_config[1]
 	seconds       = opts.bipart_config[2]
-	for j in range( len(ref_str)-max_motif_len ):
-		for first in firsts:
-			last_mod_pos = first-1
-			for N in Ns:
-				for second in seconds:
-					length = first + N + second
+	for first in firsts:
+		last_mod_pos = first-1
+		for N in Ns:
+			for second in seconds:
+				length = first + N + second
+				for j in range( len(ref_str) - (length-1) ):
 					seq    = ref_str[j:j+length]
 					ipds   = read_ipds[j:j+length]
 					if seq.find("*") == -1 and seq.find("X") == -1:
-						if strand == 0:
+						if mode == "aligned":
+							if strand == 0:
+								q_motif  = motif_tools.rev_comp_motif( seq )
+							elif strand == 1:
+								q_motif  = motif_tools.comp_motif( seq )
+						elif mode == "unaligned":
 							q_motif  = motif_tools.rev_comp_motif( seq )
-						elif strand == 1:
-							q_motif  = motif_tools.comp_motif( seq )
 
 						for base in opts.mod_bases:
 							ref_indexes = [m.start() for m in re.finditer(base, q_motif) if m.start() <= last_mod_pos]
 							for ref_index in ref_indexes:
-								rc_index      = len(q_motif) - 1 - ref_index
-								if strand == 0:
+								rc_index = len(q_motif) - 1 - ref_index
+
+								if mode == "aligned":
+									if strand == 0:
+										idx = rc_index
+									elif strand == 1:
+										idx = ref_index
+								elif mode == "unaligned":
 									idx = rc_index
-								elif strand == 1:
-									idx = ref_index
+								
 								IPD      = ipds[idx]
 								bi_motif = "".join( [q_motif[:first],"N"*N,q_motif[-second:]] )
 								ref_motif_str = "%s-%s" % (bi_motif, ref_index)
@@ -224,14 +229,12 @@ def motif_ipds( mode, read_ipds, ref_str, strand, motifs, bi_motifs, opts ):
 
 		# Loop over all possible contiguous motif sizes
 		for k in range( 4, opts.max_kmer+1 ):
-			# subread_ipds = walk_over_read( mode, subread_ipds, read_str, ref_str, read_ipds, strand, k, opts)
 			subread_ipds = walk_over_read( mode, subread_ipds, ref_str, read_ipds, strand, k, opts)
 		
 		# Now scan for valid bipartite motifs
 		if opts.bipartite:
 			for bi_motif in bi_motifs:
 				subread_ipds[bi_motif] = []
-			# subread_ipds = walk_over_read_bipartite( subread_ipds, read_str, read_ipds, strand, opts )
-			subread_ipds = walk_over_read_bipartite( subread_ipds, ref_str, read_ipds, strand, opts )
+			subread_ipds = walk_over_read_bipartite( mode, subread_ipds, ref_str, read_ipds, strand, opts )
 
 	return subread_ipds

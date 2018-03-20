@@ -29,7 +29,7 @@ def extract_controls(opts, control_aln_fn):
 	mbinRunner     = mbin.mbinRunner(opts)
 
 	# Pulling the IPD data for each motif from the WGA cmp.h5 file
-	motifs,bi_motifs = motif_tools.build_motif_dict(opts)
+	motifs,bi_motifs = motif_tools.build_motif_sets(opts)
 	opts.motifs      = motifs
 	opts.bi_motifs   = bi_motifs
 

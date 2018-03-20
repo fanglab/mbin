@@ -327,7 +327,7 @@ def simplify_motifs( tup ):
 	highscore_motifs = dict( [(motif,SCp) for motif,SCp in unit_SCp.items() if SCp>=opts.minMotifIPD and unit_SCp_N[motif]>=opts.min_motif_N] )
 
 	# Keep only the shortest version of the high scoring motifs (reduces redundancy)
-	keeper_motifs = motif_tools.shorten_motifs( unit_SCp, highscore_motifs )
+	keeper_motifs = motif_tools.shorten_motifs( highscore_motifs )
 	logging.info("  - %s %s %s/%s after motif shortening: %s" % (unit_type, unit_name, (j+1), units_N, ";".join(list(keeper_motifs))))
 
 	# See if any sets of motifs can be simplified to a degenerate motif
