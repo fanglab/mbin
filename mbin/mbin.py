@@ -434,7 +434,7 @@ class mbinRunner:
 			contig_fasta_lens    = {}
 			for i,(name,contig_seq) in enumerate(self.fasta_iter(contigs_fasta)):
 				contig_comp  = []
-				contig_kmers = read_scanner.kmer_freq( "cmp", contig_seq, 0, self.opts )
+				contig_kmers = read_scanner.kmer_freq( contig_seq, 0, self.opts )
 				for kmer,count in contig_kmers.iteritems():
 					kmer_normed_comp = math.log(float(count) / sum(contig_kmers.values()))
 					contig_comp.append(kmer_normed_comp)

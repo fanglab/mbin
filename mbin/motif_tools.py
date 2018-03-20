@@ -17,15 +17,14 @@ def motifs_from_file( opts ):
 	where the number indicates the 0-based index of the 
 	methylated base in the string.
 	"""
-	motifs    = set()
-	bi_motifs = set()
+	file_motifs = set()
 	for i,line in enumerate(open(opts.motifs_file).xreadlines()):
 		line = line.strip()
-		motifs.add(line)
+		file_motifs.add(line)
 	logging.info("Added %s motifs from %s" % (i+1, opts.motifs_file))
-	return motifs, bi_motifs
+	return file_motifs
 
-def build_motif_dict( opts ):
+def build_motif_sets( opts ):
 	"""
 	Generate a set of all possible motifs within provided parameters.
 	"""
@@ -171,7 +170,7 @@ def rev_comp_motif( motif ):
 		rc_motif.append( COMP[char] )
 	return "".join(rc_motif)
 
-def shorten_motifs( contig_motifs, highscore_motifs ):
+def shorten_motifs( highscore_motifs ):
 	"""
 	Keep only the shortest, most concise version of the high scoring
 	motifs (reduces redundancy).
