@@ -203,7 +203,8 @@ def __parseArgs():
 	opts.skip_motifs     = None
 	
 	opts.control_pkl_name = os.path.abspath(opts.control_pkl_name)
-	opts.ref              = os.path.abspath(opts.ref)
+	if opts.ref!=None:
+		opts.ref              = os.path.abspath(opts.ref)
 
 	return opts,control_aln_fn
 
