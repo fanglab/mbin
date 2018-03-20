@@ -23,6 +23,7 @@ class TestReadscanner(unittest.TestCase):
 		Read seq: G   T   G   G   T   G   G   A   A   C   T   A   G   T   C   T   G   A   A   A   A   A   T   G   G
 		IPDs:    0.4 2.4 0.3 0.1 0.1 0.2 0.4 0.4 0.2 0.1 2.2 0.4 0.3 0.5 0.1 2.3 0.2 0.6 0.5 0.4 0.3 0.4 0.2 0.1 0.3
 
+
 		"""
 		self.MOTIFS  = ["ACCACC-0","TGATCA-2", "GACNNNNNACC-1"]
 		self.REF_STR = "CACCACCTTGATCAGACTTTTTACC"
