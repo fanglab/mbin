@@ -25,6 +25,8 @@ The pipeline consists of four routines:
 3. *methylprofiles*: Creates methylation profiles for sequences using specified motifs 
 4. *mapfeatures*: Visualizes landscape of methylation features across all sequences
 
+Please note: mbin was initially developed for PacBio RS II data. Currently it does not support bam files in the Sequel system yet. We do plan to support Sequel data in the near future, and will make sure update this page as soon as an update is available.
+
 Documentation
 -------------
 For a comprehensive guide on how to install and run mBin, please see the full `documentation <https://mbin.readthedocs.io/en/latest/>`__.
